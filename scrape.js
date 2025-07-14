@@ -23,6 +23,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // Serve static files from /public (Heroku compatible)
 app.use(express.static(path.join(__dirname, 'public')));
+console.log(path.join(__dirname, 'public'))
 // Default route serves dashboard.html from /public
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
