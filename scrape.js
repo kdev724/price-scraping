@@ -126,6 +126,53 @@ app.post('/price', async (req, res) => {
   }
 });
 
+const ACCESS_TOKEN = '6374723c7c2cafff705e62cbfdbb3ea36d247f24274eced55843d49cb2c62517';
+
+const PRODUCTS = [
+  'Boss RC-3 Loop Station',
+];
+
+function normalizeWords(str) {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, '') // remove dashes and symbols
+    .split(' ')
+    .filter(Boolean); // remove empty strings
+}
+async function fetchListings() {
+  try {
+    const res = await axios.get('https://api.ebay.com/buy/browse/v1/item_summary/search', {
+      headers: {
+        Authorization: `Bearer Your Token`,
+        'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+        'Content-Type': 'application/json'
+      },
+      params: {
+        q: "'Boss RC-3'",
+        limit: 10
+      }
+    });
+
+    const items = res.data.itemSummaries;
+    if (!items || items.length === 0) {
+      console.log('No results found.');
+      return;
+    }
+
+    items.forEach((item, index) => {
+      console.log(`\n#${index + 1}`);
+      console.log('Title:', item.title);
+      console.log('Price:', item.price.value, item.price.currency);
+      console.log('Condition:', item.condition);
+      console.log('Link:', item.itemWebUrl);
+    });
+  } catch (error) {
+    console.error('❌ Search Error:', error.response?.data || error.message);
+  }
+}
+
+fetchListings();
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
