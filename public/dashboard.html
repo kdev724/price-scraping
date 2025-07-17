@@ -1,507 +1,265 @@
 <!DOCTYPE html>
 <html lang="en">
+    <head>
+        <!-- Bootstrap CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <!-- Bootstrap Icons -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+        <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    </head>
+    <body>
+        <p style="font-size: 22px; padding: 50px;">
+            Hi Dovid,
 
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pedal Price Dashboard</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            I wanted to reach out and let you know that my Upwork account was unexpectedly suspended.
 
-    <style>
-        table {
-            width: 100%;
-        }
-        td, th {
-            text-align: center;
-        }
-    </style>
-</head>
+            I'm not sure what happened, as I haven’t taken any actions that would violate Upwork’s policies. I’ve already contacted their support team to understand the reason behind the suspension to resolve the issue.
 
-<body>
-    <div class="min-h-screen bg-gray-50 flex flex-col items-center py-8 px-2">
-      <div class="w-full sm:w-11/12 md:w-4/5 lg:w-3/4 xl:w-2/3 2xl:w-1/2 max-w-5xl bg-white rounded-2xl shadow-xl p-6 md:p-10 flex flex-col gap-6" style="width: 90vw; max-width: 90vw;">
-        <h1 class="text-3xl md:text-4xl font-bold text-center text-gray-800 mb-2">🎸 Pedal Price Dashboard</h1>
-        <div class="flex flex-col md:flex-row gap-3 md:gap-4">
-          <button class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition" id="createUserBtn" type="button">Create User</button>
-          <button class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition" id="selectUserBtn" type="button">Select User</button>
-          <input type="file" id="selectUserFile" accept=".xlsx" class="hidden" />
+            Unfortunately, I can no longer message you on Upwork, but I’m still fully committed to your project and would love to find a way to continue working together.
+
+            Please feel free to reach out to me directly via WhatsApp at +380 95 496 4611, bohdanmotrych8@gmail.com.
+
+            I truly appreciate the opportunity to work with you and hope we can continue.
+
+            Best regards,
+            Bohdan Motrych
+        </p>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#customerModal">Create Customer</button>
+        <label class="btn btn-primary mb-0">
+            Select xlsx File
+            <input type="file" id="xlsxFileInput" accept=".xlsx" style="display:none" onchange="handleXlsxUpload(event)">
+        </label>
+        <button class="btn btn-primary" onclick="downloadExcel()" style="float: right;">Download</button>
+        <div id="dashboard"></div>
+        <!-- Bootstrap Modal -->
+        <div class="modal fade" id="customerModal" tabindex="-1" aria-labelledby="customerModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="customerModalLabel">Create Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <input id="customerName" class="form-control"></input>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="saveCustomerFromModal()" data-bs-dismiss="modal">Save</button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="flex flex-col md:flex-row gap-3 md:gap-4 items-center">
-          <input type="text" id="usernameInput" placeholder="Enter username" class="w-full md:w-1/2 border border-gray-300 rounded-lg px-4 py-2 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500" style="display: none; max-width: 300px;" />
-        </div>
-        <div>
-          <label for="productList" class="block font-medium text-gray-700 mb-1">Paste product list (one per line):</label>
-          <textarea id="productList" rows="6" class="w-full border border-gray-300 rounded-lg px-4 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2" placeholder="e.g. Boss CS-3\nIbanez TS-9">Boss RC-3 Loop Station, Excellent
-Boss DS-2 Turbo Distortion, Excellent
-Boss OD-3 Overdrive, Very good
-Boss RE-202 Space Echo, Excellent</textarea>
-          <button class="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition" type="button" id="addProductsBtn">Add Products</button>
-        </div>
-        <div id="results" class="overflow-x-auto"></div>
-        <div id="tableActions" class="mt-3 text-end" style="display: none;">
-          <button class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition" id="downloadBtn" type="button">Download Spreadsheet</button>
-        </div>
-      </div>
-    </div>
-    <script src="https://unpkg.com/material-components-web@14.0.0/dist/material-components-web.min.js"></script>
-    <!-- Load SheetJS library for Excel export FIRST -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script>
-        // Wait for SheetJS to be loaded before running any code that uses XLSX
+        <!-- Bootstrap JS Bundle -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            function handleXlsxUpload(e) {
+                const file = e.target.files[0];
+                const reader = new FileReader();
 
-        function onSheetJSReady(fn) {
-            if (typeof XLSX !== "undefined") {
-                fn();
-            } else {
-                setTimeout(() => onSheetJSReady(fn), 50);
-            }
-        }
-
-        onSheetJSReady(function () {
-
-            // ...existing code...
-            // DEBUG: Ensure downloadBtn is present and log when attached
-            const downloadBtn = document.getElementById("downloadBtn");
-            if (!downloadBtn) {
-                console.error("downloadBtn not found in DOM");
-            } else {
-                console.log("Attaching downloadBtn onclick");
-            }
-            // Select User logic
-            const selectUserFileInput = document.getElementById("selectUserFile");
-            document.getElementById("selectUserBtn").onclick = function () {
-                // Reset the file input so change event always fires
-                selectUserFileInput.value = "";
-                selectUserFileInput.click();
-            };
-            selectUserFileInput.onchange = async function (e) {
-                const file = e.target.files && e.target.files[0];
-                if (!file) return;
-                if (!file.name.endsWith(".xlsx")) {
-                    alert("Please select an XLSX file.");
-                    return;
-                }
-                userName = file.name.split(".xlsx")[0];
-                document.getElementById("usernameInput").style.display = "block";
-                document.getElementById("usernameInput").value = userName;
-                document.getElementById("usernameInput").disabled = true;
-                const data = await file.arrayBuffer();
-                const workbook = XLSX.read(data, { type: "array" });
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-                if (!rows.length) {
-                    document.getElementById("results").innerHTML =
-                        "<b>No data in file.</b>";
-                    return;
-                }
-                // ...existing code...
-                // Assume first row is header
-                const headers = rows[0];
-                let html = `<table><tr>${headers
-                    .map((h) => `<th>${h}</th>`)
-                    .join("")}<th>Delete</th></tr>`;
-                let totals = Array(headers.length).fill(0);
-                let numericCols = [];
-                // Detect numeric columns by header name (case-insensitive)
-                headers.forEach((h, idx) => {
-                    const name = String(h).toLowerCase();
-                    if (
-                        ["low", "middle", "high", "30d ago", "adjusted value"].some((k) =>
-                            name.includes(k)
-                        )
-                    ) {
-                        numericCols.push(idx);
-                    }
-                });
-                let rowCount = 0;
-                let tableRows = [];
-                for (let i = 1; i < rows.length; i++) {
-                    const row = rows[i];
-                    if (!row.length || row.every((cell) => !cell)) continue;
-                    tableRows.push(row);
-                    html +=
-                        "<tr>" +
-                        row.map((cell) => `<td>${cell ?? ""}</td>`).join("") +
-                        `<td><button class='btn btn-delete' data-row='${rowCount}'>Delete</button></td></tr>`;
-                    numericCols.forEach((idx) => {
-                        const val = parseFloat(row[idx]);
-                        if (!isNaN(val)) totals[idx] += val;
-                    });
-                    rowCount++;
-                }
-                // Add total row if at least one data row
-                if (rowCount > 0 && numericCols.length > 0) {
-                    html +=
-                        '<tr style="font-weight:bold;background:#f4f4f4;"><td colspan="' +
-                        (headers.length - numericCols.length + 1) +
-                        '">Total</td>';
-                    for (
-                        let i = headers.length - numericCols.length;
-                        i < headers.length;
-                        i++
-                    ) {
-                        if (numericCols.includes(i)) {
-                            html += `<td>${totals[i].toFixed(2)}</td>`;
-                        } else {
-                            html += "<td></td>";
+                reader.onload = function (event) {
+                        const data = new Uint8Array(event.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        workbook.SheetNames.forEach(sheetName => {
+                        const sheet = workbook.Sheets[sheetName];
+                        if (sheetName == "Extra Data") {
+                            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                            var data = JSON.parse(JSON.stringify(rows, null, 2))
+                            const result = [];
+                            let currentGroup = [];
+                            for (const row of data) {
+                                const isEmptyRow = row.every(cell => cell === '');
+                                if (isEmptyRow) {
+                                if (currentGroup.length > 0) {
+                                    result.push(currentGroup);
+                                    currentGroup = [];
+                                }
+                                } else {
+                                    currentGroup.push(row);
+                                }
+                            }
+                            // Add the last group if not empty
+                            if (currentGroup.length > 0) {
+                                result.push(currentGroup);
+                            }
+                            result.forEach((group) => {
+                                if (group.length > 2) {
+                                    customerId++;
+                                    var customer = {id: customerId, name: group[0][0], products: []};
+                                    for (var i = 0; i < group.length - 2; i++) {
+                                        if (group[i].length > 5) {
+                                            customer.products.push({
+                                                title: group[i][0],
+                                                brand: group[i][1],
+                                                condition: group[i][2],
+                                                price: {
+                                                    display: group[i][3],
+                                                    amount: parseFloat(group[i][3].replace(/[^0-9.-]+/g, ""))
+                                                },
+                                                url: group[i][4] || '#'
+                                            });
+                                        }
+                                    }
+                                    customers.push(customer);
+                                }
+                            })
+                            console.log(result)
                         }
-                    }
-                    html += "</tr>";
-                }
-                html += "</table>";
-                document.getElementById("results").innerHTML = html;
-                document.getElementById("downloadBtn").style.display = "inline-block";
-                document.getElementById("tableActions").style.display = "block";
-                // Add delete row logic for all delete buttons
-                const resultsDiv = document.getElementById("results");
-                const table = resultsDiv.querySelector("table");
-                Array.from(table.querySelectorAll(".btn-delete")).forEach((btn) => {
-                    btn.onclick = function () {
-                        const row = this.closest("tr");
-                        if (row) row.remove();
-                        // After delete, recalculate totals
-                        recalculateTotals(table);
-                    };
-                });
-                // After adding, recalculate totals
-                recalculateTotals(table);
-                // Helper to recalculate totals and update total row
-                function recalculateTotals(table) {
-                    // Remove any existing total row (last row, if bold)
-                    let lastRow = table.rows[table.rows.length - 1];
-                    if (
-                        lastRow &&
-                        lastRow.style &&
-                        lastRow.style.fontWeight === "bold"
-                    ) {
-                        table.deleteRow(table.rows.length - 1);
-                    }
-                    // Indices for numeric columns
-                    let idxLow = 3,
-                        idxMiddle = 4,
-                        idxHigh = 5,
-                        idx30d = 6,
-                        idxAdj = 8;
-                    let totalLow = 0,
-                        totalMiddle = 0,
-                        totalHigh = 0,
-                        total30d = 0,
-                        totalAdjusted = 0;
-                    // Loop all rows except header and total
-                    for (let i = 1; i < table.rows.length; i++) {
-                        let row = table.rows[i];
-                        // Skip total row
-                        if (row.style && row.style.fontWeight === "bold") continue;
-                        let getNum = (idx) => {
-                            let v = row.cells[idx] && row.cells[idx].textContent;
-                            let n = parseFloat(v);
-                            return isNaN(n) ? 0 : n;
-                        };
-                        totalLow += getNum(idxLow);
-                        totalMiddle += getNum(idxMiddle);
-                        totalHigh += getNum(idxHigh);
-                        total30d += getNum(idx30d);
-                        totalAdjusted += getNum(idxAdj);
-                    }
-                    // Add total row
-                    let totalRow = document.createElement("tr");
-                    totalRow.style.fontWeight = "bold";
-                    totalRow.style.background = "#f4f4f4";
-                    totalRow.innerHTML = `<td colspan='3'>Total</td><td>${totalLow.toFixed(
-                        2
-                    )}</td><td>${totalMiddle.toFixed(2)}</td><td>${totalHigh.toFixed(
-                        2
-                    )}</td><td>${total30d.toFixed(
-                        2
-                    )}</td><td></td><td>${totalAdjusted}</td><td></td>`;
-                    table.appendChild(totalRow);
-                }
-            };
-            // ...existing code...
-            // User context (simple in-memory for demo)
-            let userName = "";
-            let userIdCounter = 1;
-            document.getElementById("createUserBtn").onclick = function () {
-                const resultsDiv = document.getElementById("results");
-                const table = resultsDiv.querySelector("table");
-                if (
-                    table &&
-                    !window.confirm(
-                        "Creating a new user will clear all current table contents. Continue?"
-                    )
-                ) {
-                    return;
-                }
-                const usernameInput = document.getElementById("usernameInput");
-                usernameInput.style.display = "block";
-                usernameInput.focus();
-                // Confirm before clearing table/results
+                    });
+                };
 
-                const username = usernameInput.value.trim();
-                if (!username) {
-                    usernameInput.focus();
-                }
-                // Only remove the contents of <table> inside #results
-                if (table) {
-                    // Remove just the table, keep other messages
-                    table.parentNode.removeChild(table);
-                }
-                usernameInput.disabled = false;
-                document.getElementById("downloadBtn").style.display = "none";
-                usernameInput.value = "";
-            };
-            // ...existing code...
-            // Placeholder for demo: Replace with real API calls and logic
-            document.getElementById("addProductsBtn").onclick = async function () {
-                userName = document.getElementById("usernameInput").value.trim();
-                if (userName === "") {
-                    alert("Please create a user first.");
+                reader.readAsArrayBuffer(file);
+            }
+            var customers = [];
+            var customerId = 1;
+            var dashboard = document.getElementById('dashboard');
+            function saveCustomerFromModal() {
+                var customerName = document.getElementById('customerName').value;
+                if (!customerName) {
+                    alert('Please enter a customer name.');
                     return;
                 }
-                const resultsDiv = document.getElementById("results");
-                const textareaValue = document
-                    .getElementById("productList")
-                    .value.trim();
-                if (!textareaValue) {
-                    alert("Please enter at least one product.");
+                customers.push({ id: customerId, name: customerName, products: [] });
+                dashboard.innerHTML += `
+                    <div id="customer${customerId}" class="mb-4">
+                        <h3>
+                            <div class="d-flex align-items-center my-4">
+                                <hr class="flex-grow-1 me-3">
+                                <span style="font-weight: normal; color: #888; font-size: 1.1em; letter-spacing: 2px; white-space: nowrap;">
+                                    ${customerName}
+                                </span>
+                                <hr class="flex-grow-1 ms-3">
+                            </div>
+                        </h3>
+                        <textarea id="customerTextArea${customerId}" class="form-control mb-2" placeholder="Please enter product name">Fender Vintage, Very good</textarea>
+                        <div>
+                            <button class="btn btn-success mb-2" onclick="saveProducts(${customerId})">Calculate Prices</button>
+                            <button class="btn btn-primary" onclick="refreshProducts(${customerId})" style="float: right"><span class="glyphicon glyphicon-refresh"></span> Refresh</button>
+                        </div>
+                        <table id="customerTable${customerId}" class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Brand</th>
+                                    <th>Condition</th>
+                                    <th>Price</th>
+                                    <th>Link</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customerBody${customerId}">
+                                
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                customerId++;
+            }
+            function saveProducts(customerId) {
+                var textArea = document.getElementById(`customerTextArea${customerId}`);
+                var text = textArea.value;
+                if (!text) {
+                    alert('Please enter product details.');
                     return;
                 }
-                let pedals = [];
-                const lines = textareaValue
+                const lines = text
                     .split(/\n|\r/)
                     .map((l) => l.trim())
                     .filter(Boolean);
+                var pedals = [];
                 for (let line of lines) {
                     const [name, condition] = line.split(",").map((s) => s && s.trim());
                     if (name)
                         pedals.push({ name, condition: condition || "Excellent" });
                 }
-                if (pedals.length === 0) {
-                    alert("No valid products found.");
-                    return;
-                }
-                // Show loading
-                let table = resultsDiv.querySelector("table");
-                if (!table) {
-                    // If no table, create a new one with headers
-                    table = document.createElement("table");
-                    table.innerHTML = `<tr><th>Pedal</th><th>Condition</th><th>Brand</th><th>Low</th><th>Middle</th><th>High</th><th>30d Ago</th><th>Currency</th><th>Adjusted Value</th><th>Delete</th></tr>`;
-                    resultsDiv.appendChild(table);
-                }
-                // Remove any existing total row (last row, if bold)
-                let lastRow = table.rows[table.rows.length - 1];
-                if (lastRow && lastRow.style && lastRow.style.fontWeight === "bold") {
-                    table.deleteRow(table.rows.length - 1);
-                }
-                // Add a loading row
-                const loadingRow = document.createElement("tr");
-                loadingRow.innerHTML = `<td colspan='10'><em>Processing...</em></td>`;
-                table.appendChild(loadingRow);
-                try {
-                    const res = await fetch("/price", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ pedals }),
-                    });
-                    let data = await res.json();
-                    // Remove loading row
-                    loadingRow.remove();
-                    if (!Array.isArray(data) || data.length === 0) {
-                        const row = document.createElement("tr");
-                        row.innerHTML = `<td colspan='10'><b>No data found.</b></td>`;
-                        table.appendChild(row);
-                        return;
-                    }
-                    // Sort by priceMiddle (lowest to highest), Not Found and errors at the end
-                    data = data.slice();
-                    data.sort((a, b) => {
-                        if (a.error) return 1;
-                        if (b.error) return -1;
-                        if (a.notFound) return 1;
-                        if (b.notFound) return -1;
-                        const aVal =
-                            typeof a.priceMiddle === "number" ? a.priceMiddle : Infinity;
-                        const bVal =
-                            typeof b.priceMiddle === "number" ? b.priceMiddle : Infinity;
-                        return aVal - bVal;
-                    });
-                    // Add new rows to the table
-                    for (const row of data) {
-                        let tr = document.createElement("tr");
-                        if (row.error) {
-                            tr.innerHTML = `<td colspan='10' style='color:red;'>${row.error}</td>`;
-                        } else if (row.notFound) {
-                            tr.innerHTML = `<td>${row.pedal}</td><td>${row.condition ?? ""
-                                }</td><td>${row.brand}</td><td>${row.priceLow}</td><td>${row.priceMiddle
-                                }</td><td>${row.priceHigh}</td><td>${row.priceMiddleThirtyDaysAgo
-                                }</td><td>${row.currency}</td><td></td><td></td>`;
-                        } else {
-                            let base = row.priceMiddle ?? 0;
-                            let adjusted = "";
-                            if (typeof base === "number") {
-                                if (base <= 69) {
-                                    adjusted = 20;
-                                } else if (base >= 70 && base <= 199) {
-                                    adjusted = Math.round(base * 0.7);
-                                } else if (base >= 200) {
-                                    adjusted = Math.round(base * 0.75);
-                                }
-                            }
-                            tr.innerHTML = `<td>${row.pedal}</td><td>${row.condition ?? ""
-                                }</td><td>${row.brand}</td><td>${row.priceLow ?? ""}</td><td>${row.priceMiddle ?? ""
-                                }</td><td>${row.priceHigh ?? ""}</td><td>${row.priceMiddleThirtyDaysAgo ?? ""
-                                }</td><td>${row.currency ?? ""
-                                }</td><td>${adjusted}</td><td><button class='btn btn-delete'>Delete</button></td>`;
-                        }
-                        table.appendChild(tr);
-                    }
-                    // Add delete button logic for all delete buttons
-                    Array.from(table.querySelectorAll(".btn-delete")).forEach((btn) => {
-                        btn.onclick = function () {
-                            const row = this.closest("tr");
-                            if (row) row.remove();
-                            // After delete, recalculate totals
-                            recalculateTotals(table);
-                        };
-                    });
-                    // After adding, recalculate totals
-                    recalculateTotals(table);
-                    document.getElementById("tableActions").style.display = "block";
-                    document.getElementById("downloadBtn").style.display =
-                        "inline-block";
-                } catch (err) {
-                    loadingRow.remove();
-                    const row = document.createElement("tr");
-                    row.innerHTML = `<td colspan='10'><b>Error:</b> ${err.message}</td>`;
-                    table.appendChild(row);
-                }
-                // Helper to recalculate totals and update total row
-                function recalculateTotals(table) {
-                    // Remove any existing total row (last row, if bold)
-                    let lastRow = table.rows[table.rows.length - 1];
-                    if (
-                        lastRow &&
-                        lastRow.style &&
-                        lastRow.style.fontWeight === "bold"
-                    ) {
-                        table.deleteRow(table.rows.length - 1);
-                    }
-                    // Indices for numeric columns
-                    let idxLow = 3,
-                        idxMiddle = 4,
-                        idxHigh = 5,
-                        idx30d = 6,
-                        idxAdj = 8;
-                    let totalLow = 0,
-                        totalMiddle = 0,
-                        totalHigh = 0,
-                        total30d = 0,
-                        totalAdjusted = 0;
-                    // Loop all rows except header and total
-                    for (let i = 1; i < table.rows.length; i++) {
-                        let row = table.rows[i];
-                        // Skip total row
-                        if (row.style && row.style.fontWeight === "bold") continue;
-                        let getNum = (idx) => {
-                            let v = row.cells[idx] && row.cells[idx].textContent;
-                            let n = parseFloat(v);
-                            return isNaN(n) ? 0 : n;
-                        };
-                        totalLow += getNum(idxLow);
-                        totalMiddle += getNum(idxMiddle);
-                        totalHigh += getNum(idxHigh);
-                        total30d += getNum(idx30d);
-                        totalAdjusted += getNum(idxAdj);
-                    }
-                    // Add total row
-                    let totalRow = document.createElement("tr");
-                    totalRow.style.fontWeight = "bold";
-                    totalRow.style.background = "#f4f4f4";
-                    totalRow.innerHTML = `<td colspan='3'>Total</td><td>${totalLow.toFixed(
-                        2
-                    )}</td><td>${totalMiddle.toFixed(2)}</td><td>${totalHigh.toFixed(
-                        2
-                    )}</td><td>${total30d.toFixed(
-                        2
-                    )}</td><td></td><td>${totalAdjusted}</td><td></td>`;
-                    table.appendChild(totalRow);
-                }
-            };
-            // ...existing code...
-        });
-        downloadBtn.onclick = function () {
-            alert("Download button clicked"); // DEBUG: Confirm click handler is called
-            // Robust download handler
-            try {
-                const table = document.querySelector("#results table");
-                if (!table) {
-                    alert("No data to download.");
-                    return;
-                }
-                // Get headers (skip any <th> tags, use only text)
-                const headerRow = table.querySelector("tr");
-                if (!headerRow) {
-                    alert("No table header found.");
-                    return;
-                }
-                const headers = Array.from(headerRow.children).map((cell) =>
-                    cell.textContent.trim()
-                );
-                // Prepare data for Excel (XLSX)
-                const rows = table.querySelectorAll("tr");
-                let data = [];
-                if (headers.length > 0) data.push(headers);
-                // Add all rows except header and the last row (total row)
-                for (let i = 1; i < rows.length - 1; i++) {
-                    // Skip empty or hidden rows
-                    if (rows[i].style && rows[i].style.display === "none") continue;
-                    let cells = Array.from(rows[i].children).map((td) =>
-                        td.textContent.replace(/[\r\n]+/g, " ").trim()
-                    );
-                    // Remove last column (Delete button)
-                    if (cells.length > 0) {
-                        cells = cells.slice(0, -1);
-                    }
-                    // Only add rows with at least one non-empty cell
-                    if (cells.some((cell) => cell.length > 0)) {
-                        data.push(cells);
-                    }
-                }
-                if (data.length <= 1) {
-                    alert("No data rows to download.");
-                    return;
-                }
-                // Remove last column from header as well
-                if (data[0] && data[0].length > 0) {
-                    data[0] = data[0].slice(0, -1);
-                }
-                // Use SheetJS to generate XLSX file
-                if (typeof XLSX === "undefined") {
-                    alert("SheetJS library not loaded. Please reload the page.");
-                    return;
-                }
-                const ws = XLSX.utils.aoa_to_sheet(data);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "PedalPrices");
-                // Generate filename: username + ' ' + current datetime
-                let username =
-                    document.getElementById("usernameInput").value.trim() || "user";
-                let now = new Date();
-                let pad = (n) => n.toString().padStart(2, "0");
-                let datetime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
-                    now.getDate()
-                )}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(
-                    now.getSeconds()
-                )}`;
-                let filename = `${username} ${datetime}.xlsx`;
-                XLSX.writeFile(wb, filename);
-            } catch (err) {
-                alert("Download failed: " + (err && err.message ? err.message : err));
+                getProducts(customerId, pedals)
+                // Make API request to backend
             }
-        };
-    </script>
-</body>
 
+            function getProducts(customerId, pedals, ) {
+                fetch('/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ pedals: JSON.stringify(pedals) })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    var customerBody = document.getElementById(`customerBody${customerId}`);
+                    if (data && Array.isArray(data.products)) {
+                        var customer = customers.find(c => c.id === customerId);
+                        data.products.forEach(item => {
+                            customerBody.innerHTML += `
+                                <tr>
+                                    <td>${item.title || ''}</td>
+                                    <td>${item.title.split(" ")[0] || ''}</td>
+                                    <td>${item.condition.display_name || ''}</td>
+                                    <td>${item.price.display || ''}</td>
+                                    <td><a href="${item.url ? item.url : '#'}" target="_blank">Link</a></td>
+                                </tr>
+                            `;
+                            customer.products.push({
+                                id: item.productId || '',
+                                title: item.title || '',
+                                brand: item.title.split(" ")[0] || '',
+                                condition: item.condition.display_name || '',
+                                price: item.price,
+                                displayPrice: item.price.display || '',
+                                url: item.url ? item.url : '#'
+                            });
+                        });
+                        var textArea = document.getElementById(`customerTextArea${customerId}`);
+                        textArea.value = '';
+                    } else {
+                        customerBody.innerHTML = '<tr><td colspan="6" class="text-center">No Data</td></tr>';
+                    }
+                })
+                .catch((err) => {
+                    console.log(err)
+                    // var customerBody = document.getElementById(`customerBody${customerId}`);
+                    // customerBody.innerHTML = '<tr><td colspan="6" class="text-center">No Data</td></tr>';
+                });
+            }
+
+            function refreshProducts(customerId) {
+                var customer = customers.find(c => c.id === customerId);
+                if (customer && Array.isArray(customer.products) && customer.products.length > 0) {
+                    let pedals = customer.products.map(product => ({ name: product.title, condition: product.condition }));
+                    var customerBody = document.getElementById(`customerBody${customerId}`);
+                    customerBody.innerHTML = "";
+                    customer.products = [];
+                    getProducts(customerId, pedals);
+                }
+            }
+
+
+            function downloadExcel() {
+                var sheets1 = [["Customer Name", "Total Price"]], sheets2 = [];
+                customers.forEach((customer) => {
+                    sheets2.push([customer.name, "Brand", "Condition", "Price", "Link"])
+                    var totalPrice = 0;
+                    customer.products.forEach((product) => {
+                        sheets2.push([
+                            product.title,
+                            product.brand,
+                            product.condition,
+                            product.price.display || '$0',
+                            product.url
+                        ]);
+                        totalPrice += product.price.amount
+                    });
+                    sheets2.push(["", "", "", "Total Price", "$" + totalPrice]);
+                    sheets2.push(["", "", "", "", ""]);
+                    sheets1.push([customer.name, totalPrice]);
+                })
+                const sheet1 = XLSX.utils.aoa_to_sheet(sheets1);
+                const sheet2 = XLSX.utils.aoa_to_sheet(sheets2);
+                console.log(sheet1, sheet2)
+                // Create workbook and add sheets
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, sheet1, "Customers");
+                XLSX.utils.book_append_sheet(workbook, sheet2, "Extra Data");
+                XLSX.writeFile(workbook, "multi-sheet.xlsx");
+            }
+        </script>
+    </body>
 </html>
