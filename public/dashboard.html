@@ -6,29 +6,39 @@
         <!-- Bootstrap Icons -->
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
         <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+        <style>
+            body {
+                padding: 20px;
+            }
+            .btn {
+                margin-right: 10px;
+            }
+            .modal-body input {
+                width: 100%;
+            }
+            .table th, .table td {
+                vertical-align: middle;
+            }
+            .mb-4 {
+                margin-top: 70px;
+            }
+            hr {
+                border-top: 2px solid #000; /* Example: Bootstrap blue */
+                opacity: 1;
+            }
+            textarea {
+                height: 100px;
+                border: 1px solid #000 !important;
+            }
+        </style>
     </head>
     <body>
-        <p style="font-size: 22px; padding: 50px;">
-            Hi Dovid,
-
-            I wanted to reach out and let you know that my Upwork account was unexpectedly suspended.
-
-            I'm not sure what happened, as I haven’t taken any actions that would violate Upwork’s policies. I’ve already contacted their support team to understand the reason behind the suspension to resolve the issue.
-
-            Unfortunately, I can no longer message you on Upwork, but I’m still fully committed to your project and would love to find a way to continue working together.
-
-            Please feel free to reach out to me directly via WhatsApp at +380 95 496 4611, bohdanmotrych8@gmail.com.
-
-            I truly appreciate the opportunity to work with you and hope we can continue.
-
-            Best regards,
-            Bohdan Motrych
-        </p>
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#customerModal">Create Customer</button>
         <label class="btn btn-primary mb-0">
             Select xlsx File
             <input type="file" id="xlsxFileInput" accept=".xlsx" style="display:none" onchange="handleXlsxUpload(event)">
         </label>
+        <button class="btn btn-danger" onclick="dataInitial()" style="position: fixed; left: 50%; transform: translateX(-50%);">Initial Data</button>
         <button class="btn btn-primary" onclick="downloadExcel()" style="float: right;">Download</button>
         <div id="dashboard"></div>
         <!-- Bootstrap Modal -->
@@ -52,6 +62,36 @@
         <!-- Bootstrap JS Bundle -->
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
+            function dataInitial() {
+                if (!confirm("This will delete all existing data and load initial data. Do you want to continue?")) {
+                    return;
+                }
+                fetch('/initial', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                })
+            }
+
+            var customers = [];
+            var customerId = 1;
+            var dashboard = document.getElementById('dashboard');
+            function saveCustomerFromModal() {
+                var customerName = document.getElementById('customerName').value;
+                if (!customerName) {
+                    alert('Please enter a customer name.');
+                    return;
+                }
+                customers.push({ id: customerId, name: customerName, products: [] });
+                saveCustomerTable({ id: customerId, name: customerName, products: [] });
+                customerId++;
+            }
+
             function handleXlsxUpload(e) {
                 const file = e.target.files[0];
                 const reader = new FileReader();
@@ -83,59 +123,51 @@
                             }
                             result.forEach((group) => {
                                 if (group.length > 2) {
-                                    customerId++;
                                     var customer = {id: customerId, name: group[0][0], products: []};
-                                    for (var i = 0; i < group.length - 2; i++) {
-                                        if (group[i].length > 5) {
-                                            customer.products.push({
-                                                title: group[i][0],
-                                                brand: group[i][1],
-                                                condition: group[i][2],
-                                                price: {
-                                                    display: group[i][3],
-                                                    amount: parseFloat(group[i][3].replace(/[^0-9.-]+/g, ""))
-                                                },
-                                                url: group[i][4] || '#'
-                                            });
-                                        }
+                                    for (var i = 1; i < group.length - 1; i++) {
+                                        customer.products.push({
+                                            title: group[i][0],
+                                            brand: group[i][1],
+                                            condition: group[i][2],
+                                            price: {
+                                                display: group[i][3],
+                                                amount: parseFloat(group[i][3].replace(/[^0-9.-]+/g, ""))
+                                            },
+                                            url: group[i][4] || '#'
+                                        });
                                     }
+                                    saveCustomerTable(customer);
                                     customers.push(customer);
+                                    customerId++;
                                 }
                             })
-                            console.log(result)
                         }
                     });
                 };
-
                 reader.readAsArrayBuffer(file);
             }
-            var customers = [];
-            var customerId = 1;
-            var dashboard = document.getElementById('dashboard');
-            function saveCustomerFromModal() {
-                var customerName = document.getElementById('customerName').value;
-                if (!customerName) {
-                    alert('Please enter a customer name.');
-                    return;
-                }
-                customers.push({ id: customerId, name: customerName, products: [] });
+
+            function saveCustomerTable(customer) {
                 dashboard.innerHTML += `
-                    <div id="customer${customerId}" class="mb-4">
+                    <div id="customer${customer.id}" class="mb-4">
                         <h3>
                             <div class="d-flex align-items-center my-4">
                                 <hr class="flex-grow-1 me-3">
-                                <span style="font-weight: normal; color: #888; font-size: 1.1em; letter-spacing: 2px; white-space: nowrap;">
-                                    ${customerName}
+                                <span style="font-weight: bold; color: #888; font-size: 1.1em; letter-spacing: 2px; white-space: nowrap; color: black;">
+                                    ${customer.name} 
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="deleteCustomer(${customer.id})" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </span>
                                 <hr class="flex-grow-1 ms-3">
                             </div>
                         </h3>
-                        <textarea id="customerTextArea${customerId}" class="form-control mb-2" placeholder="Please enter product name">Fender Vintage, Very good</textarea>
-                        <div>
-                            <button class="btn btn-success mb-2" onclick="saveProducts(${customerId})">Calculate Prices</button>
-                            <button class="btn btn-primary" onclick="refreshProducts(${customerId})" style="float: right"><span class="glyphicon glyphicon-refresh"></span> Refresh</button>
+                        <textarea id="customerTextArea${customer.id}" class="form-control mb-2" placeholder="Please enter product name">Fender Vintage, Very good</textarea>
+                        <div style="margin-top: 20px">
+                            <button class="btn btn-success mb-2" onclick="saveProducts(${customer.id})">Calculate Prices</button>
+                            <button class="btn btn-primary" onclick="refreshProducts(${customer.id})" style="float: right"><span class="glyphicon glyphicon-refresh"></span> Refresh</button>
                         </div>
-                        <table id="customerTable${customerId}" class="table table-bordered">
+                        <table id="customerTable${customer.id}" class="table table-bordered" style="margin-top: 10px">
                             <thead class="table-light">
                                 <tr>
                                     <th>Title</th>
@@ -143,16 +175,58 @@
                                     <th>Condition</th>
                                     <th>Price</th>
                                     <th>Link</th>
+                                    <th></th>
                                 </tr>
                             </thead>
-                            <tbody id="customerBody${customerId}">
-                                
+                            <tbody id="customerBody${customer.id}">
+                                ${
+                                    customer.products.map((item, i) => `
+                                        <tr>
+                                            <td>${item.title || ''}</td>
+                                            <td>${item.brand || ''}</td>
+                                            <td>${item.condition || ''}</td>
+                                            <td>${item.price.display || ''}</td>
+                                            <td><a href="${item.url ? item.url : '#'}" target="_blank">Link</a></td>
+                                            <td style="text-align: center">
+                                                <button type="button" data-row="customer${customer.id}delete${item.id}" class="btn btn-danger btn-sm" onclick="deleteTableRows(${customer.id}, 'customer${customer.id}delete${item.id}')" title="Delete">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `).join('')
+                                }
                             </tbody>
                         </table>
                     </div>
                 `;
-                customerId++;
             }
+
+            function deleteCustomer(customerId) {
+                if (!confirm("Are you sure you want to delete this customer?")) {
+                    return;
+                }
+                var customerDiv = document.getElementById(`customer${customerId}`);
+                if (customerDiv) {
+                    dashboard.removeChild(customerDiv);
+                }
+                customers = customers.filter(c => c.id !== customerId);
+            }
+
+            var deletedRows = [];
+
+            function deleteTableRows(customerId, rowId) {
+                var button = document.querySelector(`button[data-row="${rowId}"]`);
+                var customerBody = document.getElementById(`customerBody${customerId}`);
+                var row = button.closest('tr');
+                customerBody.removeChild(row);
+                deletedRows.push(rowId);
+                var customer = customers.find(c => c.id === customerId);
+                if (customer) {
+                    console.log(customer.products, rowId.replace(`customer${customerId}delete`, ''))
+                    customer.products = customer.products.filter((_item, index) => _item.id != rowId.replace(`customer${customerId}delete`, ''));
+                }
+            }
+
             function saveProducts(customerId) {
                 var textArea = document.getElementById(`customerTextArea${customerId}`);
                 var text = textArea.value;
@@ -187,7 +261,7 @@
                     var customerBody = document.getElementById(`customerBody${customerId}`);
                     if (data && Array.isArray(data.products)) {
                         var customer = customers.find(c => c.id === customerId);
-                        data.products.forEach(item => {
+                        data.products.forEach((item, i) => {
                             customerBody.innerHTML += `
                                 <tr>
                                     <td>${item.title || ''}</td>
@@ -195,10 +269,16 @@
                                     <td>${item.condition.display_name || ''}</td>
                                     <td>${item.price.display || ''}</td>
                                     <td><a href="${item.url ? item.url : '#'}" target="_blank">Link</a></td>
+                                    <td style="text-align: center">
+                                        <button type="button" data-row="customer${customer.id}delete${item.id}" class="btn btn-danger btn-sm" onclick="deleteTableRows(${customer.id}, 'customer${customer.id}delete${item.id}')" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
                                 </tr>
                             `;
                             customer.products.push({
-                                id: item.productId || '',
+                                id: item.id,
+                                productId: item.productId || '',
                                 title: item.title || '',
                                 brand: item.title.split(" ")[0] || '',
                                 condition: item.condition.display_name || '',
@@ -249,16 +329,22 @@
                     });
                     sheets2.push(["", "", "", "Total Price", "$" + totalPrice]);
                     sheets2.push(["", "", "", "", ""]);
-                    sheets1.push([customer.name, totalPrice]);
+                    sheets1.push([customer.name, "$" + totalPrice]);
                 })
                 const sheet1 = XLSX.utils.aoa_to_sheet(sheets1);
                 const sheet2 = XLSX.utils.aoa_to_sheet(sheets2);
-                console.log(sheet1, sheet2)
                 // Create workbook and add sheets
                 const workbook = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(workbook, sheet1, "Customers");
                 XLSX.utils.book_append_sheet(workbook, sheet2, "Extra Data");
-                XLSX.writeFile(workbook, "multi-sheet.xlsx");
+                let now = new Date();
+                let pad = (n) => n.toString().padStart(2, "0");
+                let datetime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+                    now.getDate()
+                )}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(
+                    now.getSeconds()
+                )}`;
+                XLSX.writeFile(workbook, "multi-sheet " + datetime + ".xlsx");
             }
         </script>
     </body>

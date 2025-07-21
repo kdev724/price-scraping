@@ -5,21 +5,20 @@ const Pedal = require('./model/pedals.mdl');
 // Serve dashboard.html at the root URL
 
 // GraphQL endpoint
-const GQL_URL = "https://gql.reverb.com/graphql";
 const MONGO_URI = 'mongodb://localhost:27017/prices';
 
-// mongoose.connect(MONGO_URI, {
-//   useNewUrlParser: true,
-//   useUnifiedTopology: true,
-// });
+mongoose.connect(MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
 
-// mongoose.connection.on('connected', () => {
-//   console.log('MongoDB connected');
-// });
+mongoose.connection.on('connected', () => {
+  console.log('MongoDB connected');
+});
 
-// mongoose.connection.on('error', (err) => {
-//   console.error('MongoDB connection error:', err);
-// });
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
 
 
 const express = require("express");
@@ -35,6 +34,12 @@ app.get("/", (req, res) => {
 	res.sendFile(path.join(__dirname, "public", "dashboard.html"));
 });
 // New /search endpoint for Reverb Combined Marketplace Search
+app.post("/initial", async (req, res) => {
+	Pedal.deleteMany({}).then(() => {
+		fetchListings(req, res);
+	});
+})
+
 app.post("/search", async (req, res) => {
 	let pedals = [];
 	if (req.body && Array.isArray(req.body.pedals)) {
@@ -48,7 +53,7 @@ app.post("/search", async (req, res) => {
 	pedals.forEach((pedal) => {
 		titles.push(pedal.name);
 	});
-	console.log(titles)
+	console.log(pedals)
 	Pedal.find({
 		$or: titles.map(t => ([
 			{ title: { $regex: t, $options: 'i' } },
@@ -57,7 +62,24 @@ app.post("/search", async (req, res) => {
 	})
 	.then((foundPedals) => {
 		if (foundPedals.length > 0) {
-			return res.json({ products: foundPedals });
+			var products = []
+			foundPedals.forEach((item, i) => {
+				var pedal = pedals.find(p => item.title.toLowerCase().includes(p.name.toLowerCase()));
+				if (!pedal) return;
+				if (item.condition.display_name.toLocaleLowerCase() === pedal.condition.toLocaleLowerCase()) {
+					products.push({
+						id: i + 1,
+						title: item.title,
+						brand: item.brand,
+						productId: item.productId,
+						price: item.price,
+						condition: item.condition,
+						url: item.url,
+						photos: item.photos
+					});
+				}
+			});
+			return res.json({ products });
 		} else {
 			return res.status(404).json({ error: "No pedals found" });
 		}
@@ -70,7 +92,8 @@ app.post("/search", async (req, res) => {
 
 const accessToken = 'YOUR_ACCESS_TOKEN';
 
-const fetchListings = async () => {
+var page = 1;
+const fetchListings = async (req, res) => {
   try {
     axios.get('https://api.reverb.com/api/listings', {
       headers: {
@@ -81,18 +104,13 @@ const fetchListings = async () => {
       },
       params: {
         query: 'fender guitar',   // You can change this
-        page: 2,
-        per_page: 100              // Max 100 per page
+        page,
+        per_page: 50              // Max 100 per page
       }
     }).then((response) => {
 		const listings = response.data.listings;
 		listings.forEach(item => {
-			console.log(item);
 			const title = item.title;
-			const price = `${item.price.amount} ${item.price.currency}`;
-			const make = item.make;
-			const url = item._links.web.href;
-			console.log(`${title} | ${make} | ${price} | ${url}`);
 			const newPedal = new Pedal({
 				title,
 				brand: item.brand,
@@ -102,8 +120,16 @@ const fetchListings = async () => {
 				url: item._links.web.href,
 				photos: item.photos.map(photo => photo.url),
 			});
-			// newPedal.save();
+			newPedal.save();
 		});
+		if (response.data.total > page * 50) {
+			console.log(response.data.total - page * 50, page);
+			page++;	
+			fetchListings();
+		}
+		else {
+			res.status(200).json({ message: 'Listings fetched successfully' });
+		}
 	})
   } catch (error) {
     console.error('API Error:', error.response?.data || error.message);
