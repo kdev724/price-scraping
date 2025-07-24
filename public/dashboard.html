@@ -87,8 +87,9 @@
                     alert('Please enter a customer name.');
                     return;
                 }
-                customers.push({ id: customerId, name: customerName, products: [] });
-                saveCustomerTable({ id: customerId, name: customerName, products: [] });
+                var customer = { id: customerId, name: customerName, products: [], low: 20, middle: 0.7, high: 0.75 };
+                customers.push(customer);
+                saveCustomerTable(customer);
                 customerId++;
             }
 
