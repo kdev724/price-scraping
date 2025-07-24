@@ -161,7 +161,7 @@ async function scrapeBrandsFromWeb() {
 	  
 	  // Wait longer for dynamic content on Ubuntu
 	  console.log('⏳ Waiting for dynamic content...');
-	  await page.waitForTimeout(5000);
+	  await new Promise(resolve => setTimeout(resolve, 5000))
 	  
 	  // Take screenshot for debugging
 	  await page.screenshot({ path: 'brands_debug.png', fullPage: true });
