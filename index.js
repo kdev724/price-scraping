@@ -147,7 +147,6 @@ const getProducts = async (brand) => {
 		brandName = brand.name.toLocaleLowerCase();
 	}
 	console.log('🎸 Brands Found:', brandName);
-	brandName = "boss"
 	var page = 0, total = 0, priceQuery = {}, step = 0;
 	var testResponse = await axios.get('https://api.reverb.com/api/listings', {
 		headers: {
