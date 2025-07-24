@@ -105,6 +105,7 @@ async function scrapeBrandsFromWeb() {
   const browser = await puppeteer.launch({
 	headless: false,
 	slowMo: 50,
+	args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
 
   const page = await browser.newPage();
