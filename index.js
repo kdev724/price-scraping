@@ -105,29 +105,30 @@ puppeteer.use(StealthPlugin());
 const { title } = require("process");
 async function scrapeBrandsFromWeb() {
 	const browser = await puppeteer.launch({
-		headless: true,
+		headless: false,
 		slowMo: 50,
 		args: ['--no-sandbox', '--disable-setuid-sandbox']
-	  });
-	  
-	  const page = await browser.newPage();
-	  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36');
-	  await page.setViewport({ width: 1280, height: 800 });
-	  await page.setJavaScriptEnabled(true);
-	  await page.setDefaultNavigationTimeout(60000);
-	  
-	  await page.goto('https://reverb.com/brands', {
+	});
+
+	const page = await browser.newPage();
+	await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36');
+	await page.setViewport({ width: 1280, height: 800 });
+	await page.setJavaScriptEnabled(true);
+	await page.setDefaultNavigationTimeout(60000);
+
+	await page.goto('https://reverb.com/brands', {
 		waitUntil: 'domcontentloaded',
 		timeout: 60000,
-	  });
-	  await new Promise(resolve => setTimeout(resolve, 3000)); // wait for JS-rendered content
-	  
-	  console.log(1)
-	  await page.screenshot({ path: 'public/brands_debug.png', fullPage: true });
-	  console.log(2)
-	  require('fs').writeFileSync('public/brands_debug.html', await page.content());
-	  let brands = [];
-	  try {
+	});
+
+	page.on('error', err => console.error('Page error:', err));
+	page.on('pageerror', err => console.error('Page error event:', err));
+	page.on('crash', () => console.error('Page crashed'));
+	page.on('close', () => console.warn('Page closed'));
+	await new Promise(resolve => setTimeout(resolve, 3000)); // wait for JS-rendered content
+
+	let brands = [];
+	try {
 		await page.waitForSelector('.brands-index__all-brands__section__column a', { timeout: 10000 });
 		brands = await page.evaluate(() => {
 			const elements = document.querySelectorAll('.brands-index__all-brands__section__column a');
@@ -136,11 +137,13 @@ async function scrapeBrandsFromWeb() {
 				url: el.href.startsWith('http') ? el.href : `https://reverb.com${el.getAttribute('href')}`
 			}));
 		});
-	  } catch (e) {
+	} catch (e) {
 		console.warn('Primary selector failed, trying generic link selector...');
-	  }
-	  await browser.close();
-	  return brands;
+	}
+	await page.screenshot({ path: 'public/brands_debug.png', fullPage: true });
+	require('fs').writeFileSync('public/brands_debug.html', await page.content());
+	await browser.close();
+	return brands;
 }
 
 const accessToken = '0e5ce3b5378045fd27810212c28ad211ae420fa5515a0a56aded4b9fd402cbd0';
