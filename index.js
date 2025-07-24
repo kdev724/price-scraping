@@ -122,6 +122,10 @@ async function scrapeBrandsFromWeb() {
 	  });
 	  await new Promise(resolve => setTimeout(resolve, 3000)); // wait for JS-rendered content
 	  
+	  console.log(1)
+	  await page.screenshot({ path: 'public/brands_debug.png', fullPage: true });
+	  console.log(2)
+	  require('fs').writeFileSync('public/brands_debug.html', await page.content());
 	  let brands = [];
 	  try {
 		await page.waitForSelector('.brands-index__all-brands__section__column a', { timeout: 10000 });
@@ -135,11 +139,6 @@ async function scrapeBrandsFromWeb() {
 	  } catch (e) {
 		console.warn('Primary selector failed, trying generic link selector...');
 	  }
-	  console.log(1)
-	  await page.screenshot({ path: 'public/brands_debug.png', fullPage: true });
-	  console.log(2)
-	  require('fs').writeFileSync('public/brands_debug.html', await page.content());
-	  
 	  await browser.close();
 	  return brands;
 }
