@@ -103,7 +103,7 @@ const puppeteer = require('puppeteer');
 const { title } = require("process");
 async function scrapeBrandsFromWeb() {
   const browser = await puppeteer.launch({
-	headless: false,
+	headless: true,
 	slowMo: 50,
 	args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
