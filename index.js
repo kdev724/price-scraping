@@ -144,11 +144,17 @@ async function scrapeBrandsFromWeb() {
 
 const accessToken = '0e5ce3b5378045fd27810212c28ad211ae420fa5515a0a56aded4b9fd402cbd0';
 
+var traitValues = {
+	"art-and-lutherie--11094": "art-and-lutherie",
+	"b-c-rich--47": "b-c-rich",
+	"g-and-l--11094": "g-and-l",
+}
 const getProducts = async (brand) => {
 	let brandName = brand.url.split('/').pop();
-	if (!brand.name.includes(" ")) {
-		brandName = brand.name.toLocaleLowerCase();
-	}
+	// if (!brand.name.includes(" ")) {
+	// 	brandName = brand.name.toLocaleLowerCase();
+	// }
+	brandName = brandName.split("--")[0];
 	console.log('🎸 Brands Found:', brandName);
 	var page = 0, total = 0, priceQuery = {}, step = 0;
 	var testResponse = await axios.get('https://api.reverb.com/api/listings', {
@@ -164,6 +170,7 @@ const getProducts = async (brand) => {
 			per_page: 50              // Max 100 per page
 		}
 	})
+	console.log(testResponse.data.total)
 	if (testResponse.data.total >= 20000) {
 		priceQuery = { price_min: 0, price_max: 150 }
 		step = 1;
