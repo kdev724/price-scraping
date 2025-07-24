@@ -164,13 +164,13 @@ async function scrapeBrandsFromWeb() {
 	  await new Promise(resolve => setTimeout(resolve, 5000))
 	  
 	  // Take screenshot for debugging
-	  await page.screenshot({ path: 'brands_debug.png', fullPage: true });
-	  console.log('📸 Screenshot saved as brands_debug.png');
+	//   await page.screenshot({ path: 'public/brands_debug.png', fullPage: true });
+	//   console.log('📸 Screenshot saved as brands_debug.png');
 	  
-	  // Save HTML for debugging
-	  const html = await page.content();
-	  require('fs').writeFileSync('brands_debug.html', html);
-	  console.log('📄 HTML saved as brands_debug.html');
+	//   // Save HTML for debugging
+	//   const html = await page.content();
+	//   require('fs').writeFileSync('brands_debug.html', html);
+	//   console.log('📄 HTML saved as brands_debug.html');
 	  
 	  let brands = [];
 	  
