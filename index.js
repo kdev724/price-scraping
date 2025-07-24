@@ -118,7 +118,7 @@ async function scrapeBrandsFromWeb() {
 		waitUntil: 'domcontentloaded',
 		timeout: 60000,
 	  });
-	  await page.waitForTimeout(3000); // wait for JS-rendered content
+	  await new Promise(resolve => setTimeout(resolve, 3000)); // wait for JS-rendered content
 	  
 	  let brands = [];
 	  try {
