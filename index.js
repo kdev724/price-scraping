@@ -13,16 +13,16 @@ const cheerio = require("cheerio");
 const MONGO_URI = 'mongodb://localhost:27017/prices';
 
 mongoose.connect(MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+	useNewUrlParser: true,
+	useUnifiedTopology: true,
 });
 
 mongoose.connection.on('connected', () => {
-  console.log('MongoDB connected');
+	console.log('MongoDB connected');
 });
 
 mongoose.connection.on('error', (err) => {
-  console.error('MongoDB connection error:', err);
+	console.error('MongoDB connection error:', err);
 });
 
 
@@ -40,7 +40,7 @@ app.get("/", (req, res) => {
 });
 // New /search endpoint for Reverb Combined Marketplace Search
 app.post("/initial", async (req, res) => {
-		fetchListings(req, res);
+	fetchListings(req, res);
 
 	// Pedal.deleteMany({}).then(() => {
 	// 	fetchListings(req, res);
@@ -65,79 +65,81 @@ app.post("/search", async (req, res) => {
 		$or: [
 			{ title: { $in: titles } }, // exact match
 			...titles.map(pedal => ({
-			title: { $regex: pedal, $options: "i" } // case-insensitive substring match
+				title: { $regex: pedal, $options: "i" } // case-insensitive substring match
 			}))
 		]
 	})
-	.then((foundPedals) => {
-		if (foundPedals.length > 0) {
-			var products = []
-			foundPedals.forEach((item, i) => {
-				var pedal = pedals.find(p => item.title.toLowerCase().includes(p.name.toLowerCase()));
-				if (!pedal) return;
-				if (item.condition.display_name.toLocaleLowerCase() === pedal.condition.toLocaleLowerCase()) {
-					products.push({
-						id: i + 1,
-						title: item.title,
-						brand: item.brand,
-						productId: item.productId,
-						price: item.price,
-						condition: item.condition,
-						url: item.url,
-						photos: item.photos
-					});
-				}
-			});
-			return res.json({ products });
-		} else {
-			return res.status(404).json({ error: "No pedals found" });
-		}
-	})
-	.catch((err) => {
-		console.error("Error fetching pedals:", err);
-		return res.status(500).json({ error: "Internal server error" });
-	});
+		.then((foundPedals) => {
+			if (foundPedals.length > 0) {
+				var products = []
+				foundPedals.forEach((item, i) => {
+					var pedal = pedals.find(p => item.title.toLowerCase().includes(p.name.toLowerCase()));
+					if (!pedal) return;
+					if (item.condition.display_name.toLocaleLowerCase() === pedal.condition.toLocaleLowerCase()) {
+						products.push({
+							id: i + 1,
+							title: item.title,
+							brand: item.brand,
+							productId: item.productId,
+							price: item.price,
+							condition: item.condition,
+							url: item.url,
+							photos: item.photos
+						});
+					}
+				});
+				return res.json({ products });
+			} else {
+				return res.status(404).json({ error: "No pedals found" });
+			}
+		})
+		.catch((err) => {
+			console.error("Error fetching pedals:", err);
+			return res.status(500).json({ error: "Internal server error" });
+		});
 });
 
 const puppeteer = require('puppeteer');
 const { title } = require("process");
 async function scrapeBrandsFromWeb() {
-  const browser = await puppeteer.launch({
-	headless: true,
-	slowMo: 50,
-	args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
-
-  const page = await browser.newPage();
-  await page.goto('https://reverb.com/brands', {
-	waitUntil: 'domcontentloaded',
-	timeout: 60000,
-  });
-
-  let brands = [];
-  try {
-	await page.waitForSelector('.brands-index__all-brands__section__column a', { timeout: 10000 });
-	brands = await page.evaluate(() => {
-	  const elements = document.querySelectorAll('.brands-index__all-brands__section__column a');
-	  return Array.from(elements).map(el => ({
-		name: el.textContent.trim(),
-		url: el.href.startsWith('http') ? el.href : `https://reverb.com${el.getAttribute('href')}`
-	  }));
+	const browser = await puppeteer.launch({
+		headless: true,
+		slowMo: 50,
+		args: ['--no-sandbox', '--disable-setuid-sandbox']
 	});
-  } catch (e) {
-	console.warn('Primary selector failed, trying generic link selector...');
-	await page.screenshot({ path: 'brands_debug.png', fullPage: true });
-	const html = await page.content();
-	require('fs').writeFileSync('brands_debug.html', html);
-	brands = await page.evaluate(() => {
-	  return Array.from(document.querySelectorAll('a')).map(a => ({
-		name: a.textContent.trim(),
-		url: a.href
-	  })).filter(b => b.name && b.url);
+
+	const page = await browser.newPage();
+	await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.198 Safari/537.36');
+	await page.setViewport({ width: 1280, height: 800 });
+	await page.goto('https://reverb.com/brands', {
+		waitUntil: 'domcontentloaded',
+		timeout: 60000,
 	});
-  }
-  await browser.close();
-  return brands;
+
+	let brands = [];
+	try {
+		await page.waitForSelector('.brands-index__all-brands__section__column a', { timeout: 10000 });
+		brands = await page.evaluate(() => {
+			const elements = document.querySelectorAll('.brands-index__all-brands__section__column a');
+			return Array.from(elements).map(el => ({
+				name: el.textContent.trim(),
+				url: el.href.startsWith('http') ? el.href : `https://reverb.com${el.getAttribute('href')}`
+			}));
+		});
+	} catch (e) {
+		console.warn('Primary selector failed, trying generic link selector...');
+		await page.screenshot({ path: 'brands_debug.png', fullPage: true });
+		const html = await page.content();
+		require('fs').writeFileSync('brands_debug.html', html);
+		brands = await page.evaluate(() => {
+			return Array.from(document.querySelectorAll('a')).map(a => ({
+				name: a.textContent.trim(),
+				url: a.href
+			})).filter(b => b.name && b.url);
+		});
+	}
+	await browser.close();
+	return brands;
 }
 
 const accessToken = '0e5ce3b5378045fd27810212c28ad211ae420fa5515a0a56aded4b9fd402cbd0';
@@ -163,7 +165,7 @@ const getProducts = async (brand) => {
 		}
 	})
 	if (testResponse.data.total >= 20000) {
-		priceQuery = {price_min: 0, price_max: 150}
+		priceQuery = { price_min: 0, price_max: 150 }
 		step = 1;
 		console.log("Step 1: Price range set to 0-150");
 	}
@@ -200,32 +202,32 @@ const getProducts = async (brand) => {
 			});
 			if (total > page * 50) {
 				console.log(total - page * 50, page);
-				page++;	
+				page++;
 				// fetchListings();
 			}
 		}
 		page = 0;
-		priceQuery = {price_min: 150.001, price_max: 100000}
-		step --;
+		priceQuery = { price_min: 150.001, price_max: 100000 }
+		step--;
 	}
-	
+
 }
 const fetchListings = async (req, res) => {
-  try {
-	let brands = await scrapeBrandsFromWeb();
-	for (const brand of brands) {
-		await getProducts(brand);
+	try {
+		let brands = await scrapeBrandsFromWeb();
+		for (const brand of brands) {
+			await getProducts(brand);
+		}
+	} catch (error) {
+		console.error('API Error:', error.response?.data || error.message);
 	}
-  } catch (error) {
-	console.error('API Error:', error.response?.data || error.message);
-  }
 };
 const getCategories = async (listings) => {
 	const res = await fetch('https://api.reverb.com/api/categories/flat', {
 		headers: {
-		'Accept': 'application/hal+json',
-		'Accept-Version': '3.0',
-		'Authorization': `Bearer ${accessToken}`
+			'Accept': 'application/hal+json',
+			'Accept-Version': '3.0',
+			'Authorization': `Bearer ${accessToken}`
 		}
 	});
 	const categories = await res.json();
@@ -288,7 +290,7 @@ const getCategories = async (listings) => {
 // 		}
 // 	  }
 // 	}`,
-	  
+
 //   })
 // 	.then((response) => {
 // 	  // TODO: handle response.data as needed
