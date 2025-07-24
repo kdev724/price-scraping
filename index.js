@@ -105,9 +105,15 @@ puppeteer.use(StealthPlugin());
 const { title } = require("process");
 async function scrapeBrandsFromWeb() {
 	const browser = await puppeteer.launch({
-		headless: false,
+		headless: true,
 		slowMo: 50,
-		args: ['--no-sandbox', '--disable-setuid-sandbox']
+		args: [
+			'--no-sandbox',
+			'--disable-setuid-sandbox',
+			'--disable-gpu',
+			'--single-process',
+			'--disable-dev-shm-usage'
+		  ]
 	});
 
 	const page = await browser.newPage();
@@ -117,7 +123,7 @@ async function scrapeBrandsFromWeb() {
 	await page.setDefaultNavigationTimeout(60000);
 
 	await page.goto('https://reverb.com/brands', {
-		waitUntil: 'domcontentloaded',
+		waitUntil: 'networkidle2',
 		timeout: 60000,
 	});
 
