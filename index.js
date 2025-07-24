@@ -113,7 +113,6 @@ async function scrapeBrandsFromWeb() {
 	await page.setViewport({ width: 1280, height: 800 });
 	await page.setJavaScriptEnabled(true);
 	await page.setDefaultNavigationTimeout(60000);
-	await page.waitForTimeout(5000);
 	await page.goto('https://reverb.com/brands', {
 		waitUntil: 'domcontentloaded',
 		timeout: 60000,
@@ -131,15 +130,6 @@ async function scrapeBrandsFromWeb() {
 		});
 	} catch (e) {
 		console.warn('Primary selector failed, trying generic link selector...');
-		await page.screenshot({ path: 'brands_debug.png', fullPage: true });
-		const html = await page.content();
-		require('fs').writeFileSync('brands_debug.html', html);
-		brands = await page.evaluate(() => {
-			return Array.from(document.querySelectorAll('a')).map(a => ({
-				name: a.textContent.trim(),
-				url: a.href
-			})).filter(b => b.name && b.url);
-		});
 	}
 	await browser.close();
 	return brands;
