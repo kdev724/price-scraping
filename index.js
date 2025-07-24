@@ -1,9 +1,14 @@
+// Function to scrape brands from https://reverb.com/brands
+
+// Endpoint to fetch all brands from Reverb
+// Endpoint to fetch available brands from Reverb
+
 const axios = require("axios");
 const path = require("path");
 const mongoose = require('mongoose');
 const Pedal = require('./model/pedals.mdl');
+const cheerio = require("cheerio");
 // Serve dashboard.html at the root URL
-
 // GraphQL endpoint
 const MONGO_URI = 'mongodb://localhost:27017/prices';
 
@@ -35,9 +40,11 @@ app.get("/", (req, res) => {
 });
 // New /search endpoint for Reverb Combined Marketplace Search
 app.post("/initial", async (req, res) => {
-	Pedal.deleteMany({}).then(() => {
 		fetchListings(req, res);
-	});
+
+	// Pedal.deleteMany({}).then(() => {
+	// 	fetchListings(req, res);
+	// });
 })
 
 app.post("/search", async (req, res) => {
@@ -55,10 +62,12 @@ app.post("/search", async (req, res) => {
 	});
 	console.log(pedals)
 	Pedal.find({
-		$or: titles.map(t => ([
-			{ title: { $regex: t, $options: 'i' } },
-			{ title: t }
-		])).flat()
+		$or: [
+			{ title: { $in: titles } }, // exact match
+			...titles.map(pedal => ({
+			title: { $regex: pedal, $options: "i" } // case-insensitive substring match
+			}))
+		]
 	})
 	.then((foundPedals) => {
 		if (foundPedals.length > 0) {
@@ -90,51 +99,234 @@ app.post("/search", async (req, res) => {
 	});
 });
 
-const accessToken = 'YOUR_ACCESS_TOKEN';
+const puppeteer = require('puppeteer');
+const { title } = require("process");
+async function scrapeBrandsFromWeb() {
+  const browser = await puppeteer.launch({
+	headless: false,
+	slowMo: 50,
+  });
 
-var page = 1;
-const fetchListings = async (req, res) => {
+  const page = await browser.newPage();
+  await page.goto('https://reverb.com/brands', {
+	waitUntil: 'domcontentloaded',
+	timeout: 60000,
+  });
+
+  let brands = [];
   try {
-    axios.get('https://api.reverb.com/api/listings', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/hal+json',
-        'Content-Type': 'application/json',
-		'Accept-Version': '3.0'
-      },
-      params: {
-        query: 'fender guitar',   // You can change this
-        page,
-        per_page: 50              // Max 100 per page
-      }
-    }).then((response) => {
-		const listings = response.data.listings;
-		listings.forEach(item => {
-			const title = item.title;
-			const newPedal = new Pedal({
-				title,
-				brand: item.brand,
-				productId: item.id,
-				price: item.price,
-				condition: item.condition,
-				url: item._links.web.href,
-				photos: item.photos.map(photo => photo.url),
-			});
-			newPedal.save();
-		});
-		if (response.data.total > page * 50) {
-			console.log(response.data.total - page * 50, page);
-			page++;	
-			fetchListings();
-		}
-		else {
-			res.status(200).json({ message: 'Listings fetched successfully' });
+	await page.waitForSelector('.brands-index__all-brands__section__column a', { timeout: 10000 });
+	brands = await page.evaluate(() => {
+	  const elements = document.querySelectorAll('.brands-index__all-brands__section__column a');
+	  return Array.from(elements).map(el => ({
+		name: el.textContent.trim(),
+		url: el.href.startsWith('http') ? el.href : `https://reverb.com${el.getAttribute('href')}`
+	  }));
+	});
+  } catch (e) {
+	console.warn('Primary selector failed, trying generic link selector...');
+	await page.screenshot({ path: 'brands_debug.png', fullPage: true });
+	const html = await page.content();
+	require('fs').writeFileSync('brands_debug.html', html);
+	brands = await page.evaluate(() => {
+	  return Array.from(document.querySelectorAll('a')).map(a => ({
+		name: a.textContent.trim(),
+		url: a.href
+	  })).filter(b => b.name && b.url);
+	});
+  }
+  await browser.close();
+  return brands;
+}
+
+const accessToken = '0e5ce3b5378045fd27810212c28ad211ae420fa5515a0a56aded4b9fd402cbd0';
+
+const getProducts = async (brand) => {
+	let brandName = brand.url.split('/').pop();
+	if (!brand.name.includes(" ")) {
+		brandName = brand.name.toLocaleLowerCase();
+	}
+	console.log('🎸 Brands Found:', brandName);
+	brandName = "boss"
+	var page = 0, total = 0, priceQuery = {}, step = 0;
+	var testResponse = await axios.get('https://api.reverb.com/api/listings', {
+		headers: {
+			'Authorization': `Bearer ${accessToken}`,
+			'Accept': 'application/hal+json',
+			'Content-Type': 'application/json',
+			'Accept-Version': '3.0'
+		},
+		params: {
+			make: brandName,   // You can change this
+			page: page + 1,
+			per_page: 50              // Max 100 per page
 		}
 	})
+	if (testResponse.data.total >= 20000) {
+		priceQuery = {price_min: 0, price_max: 150}
+		step = 1;
+		console.log("Step 1: Price range set to 0-150");
+	}
+	while (step >= 0) {
+		while ((page == 0 || page * 50 < total) && page < 400) {
+			var response = await axios.get('https://api.reverb.com/api/listings', {
+				headers: {
+					'Authorization': `Bearer ${accessToken}`,
+					'Accept': 'application/hal+json',
+					'Content-Type': 'application/json',
+					'Accept-Version': '3.0'
+				},
+				params: {
+					make: brandName,   // You can change this
+					page: page + 1,
+					per_page: 50,
+					...priceQuery
+				}
+			})
+			var total = response.data.total
+			const listings = response.data.listings;
+			listings.forEach(item => {
+				const title = item.title;
+				const newPedal = new Pedal({
+					title,
+					brand: item.brand,
+					productId: item.id,
+					price: item.price,
+					condition: item.condition,
+					url: item._links.web.href,
+					photos: item.photos.map(photo => photo.url),
+				});
+				newPedal.save();
+			});
+			if (total > page * 50) {
+				console.log(total - page * 50, page);
+				page++;	
+				// fetchListings();
+			}
+		}
+		page = 0;
+		priceQuery = {price_min: 150.001, price_max: 100000}
+		step --;
+	}
+	
+}
+const fetchListings = async (req, res) => {
+  try {
+	let brands = await scrapeBrandsFromWeb();
+	for (const brand of brands) {
+		await getProducts(brand);
+	}
   } catch (error) {
-    console.error('API Error:', error.response?.data || error.message);
+	console.error('API Error:', error.response?.data || error.message);
   }
 };
+const getCategories = async (listings) => {
+	const res = await fetch('https://api.reverb.com/api/categories/flat', {
+		headers: {
+		'Accept': 'application/hal+json',
+		'Accept-Version': '3.0',
+		'Authorization': `Bearer ${accessToken}`
+		}
+	});
+	const categories = await res.json();
+	return categories;
+}
+
+// fetchListings()
+// Function to fetch all brands from Reverb (all pages, not an API endpoint)
+// var page = 0;
+// const fetchListings = async (req, res) => {
+//   try {
+// 	axios.post('https://gql.reverb.com/graphql', {
+// 	  operationName: "Core_Marketplace_CombinedMarketplaceSearch",
+// 	  variables: {
+// 		inputListings: {
+// 		  query: "BOSS",
+// 		  categorySlugs: [],
+// 		  brandSlugs: [],
+// 		  conditionSlugs: [],
+// 		  shippingRegionCodes: [],
+// 		  itemState: [],
+// 		  itemCity: [],
+// 		  curatedSetSlugs: [],
+// 		  saleSlugs: [],
+// 		  withProximityFilter: { proximity: false },
+// 		  boostedItemRegionCode: "US",
+// 		  useExperimentalRecall: true,
+// 		  traitValues: [],
+// 		  excludeCategoryUuids: [],
+// 		  excludeBrandSlugs: [],
+// 		  likelihoodToSellExperimentGroup: 3,
+// 		  countryOfOrigin: [],
+// 		  contexts: ["INITIAL_QUERY"],
+// 		  autodirects: "IMPROVED_DATA",
+// 		  multiClientExperiments: [{ name: "spell_check_autocorrect", group: "1" }],
+// 		  canonicalFinishes: [],
+// 		  skipAutocorrect: false,
+// 		  limit: 50,
+// 		  offset: page * 50,
+// 		  fallbackToOr: true,
+// 		  collapsible: "CANONICAL_PRODUCT_NEW_CONDITION_AND_TNP"
+// 		}
+// 	},
+// 	query: `query Core_Marketplace_CombinedMarketplaceSearch($inputListings: Input_reverb_search_ListingsSearchRequest) {
+// 	  listingsSearch(input: $inputListings) {
+// 		total
+// 		offset
+// 		limit
+// 		listings {
+// 		  _id
+// 		  title
+// 		  condition {
+// 			displayName
+// 		  }
+// 		  price {
+// 			amount
+// 			display
+// 			currency
+// 		  }
+// 		}
+// 	  }
+// 	}`,
+	  
+//   })
+// 	.then((response) => {
+// 	  // TODO: handle response.data as needed
+// 	  console.log(response.data.data);
+// 		const {listingsSearch} = response.data.data;
+// 		const {listings, total} = listingsSearch;
+// 		console.log(listings[0])
+// 		listings.forEach(item => {
+// 			const title = item.title;
+// 			const newPedal = new Pedal({
+// 				title,
+// 				brand: item.brand,
+// 				productId: item.id,
+// 				price: item.price,
+// 				condition: item.condition,
+// 				url: item._links.web.href,
+// 				photos: item.photos.map(photo => photo.url),
+// 			});
+// 			// newPedal.save();
+// 		});
+// 		if (total > page * 50) {
+// 			console.log(total, listings.length);
+// 			page++;	
+// 			fetchListings();
+// 		}
+// 		else {
+// 			res.status(200).json({ message: 'Listings fetched successfully' });
+// 		}
+// 	})
+// 	.catch((error) => {
+// 	  console.error('API Error:', error.response?.data || error.message);
+// 	  res.status(500).json({ error: 'Failed to fetch listings' });
+// 	});
+//   } catch (error) {
+// 	console.error('API Error:', error);
+// 	res.status(500).json({ error: 'Internal server error' });
+//   }
+// };
 // fetchListings();
 
 app.listen(PORT, () => {

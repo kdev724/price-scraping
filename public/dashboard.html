@@ -123,7 +123,7 @@
                             }
                             result.forEach((group) => {
                                 if (group.length > 2) {
-                                    var customer = {id: customerId, name: group[0][0], products: []};
+                                    var customer = {id: customerId, name: group[0][0], products: [], low: 20, middle: 0.7, high: 0.75};
                                     for (var i = 1; i < group.length - 1; i++) {
                                         customer.products.push({
                                             title: group[i][0],
@@ -181,18 +181,7 @@
                             <tbody id="customerBody${customer.id}">
                                 ${
                                     customer.products.map((item, i) => `
-                                        <tr>
-                                            <td>${item.title || ''}</td>
-                                            <td>${item.brand || ''}</td>
-                                            <td>${item.condition || ''}</td>
-                                            <td>${item.price.display || ''}</td>
-                                            <td><a href="${item.url ? item.url : '#'}" target="_blank">Link</a></td>
-                                            <td style="text-align: center">
-                                                <button type="button" data-row="customer${customer.id}delete${item.id}" class="btn btn-danger btn-sm" onclick="deleteTableRows(${customer.id}, 'customer${customer.id}delete${item.id}')" title="Delete">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
+                                        ${addTBodyHtml(customer, item)}
                                     `).join('')
                                 }
                             </tbody>
@@ -222,7 +211,6 @@
                 deletedRows.push(rowId);
                 var customer = customers.find(c => c.id === customerId);
                 if (customer) {
-                    console.log(customer.products, rowId.replace(`customer${customerId}delete`, ''))
                     customer.products = customer.products.filter((_item, index) => _item.id != rowId.replace(`customer${customerId}delete`, ''));
                 }
             }
@@ -248,7 +236,7 @@
                 // Make API request to backend
             }
 
-            function getProducts(customerId, pedals, ) {
+            function getProducts(customerId, pedals) {
                 fetch('/search', {
                     method: 'POST',
                     headers: {
@@ -261,21 +249,8 @@
                     var customerBody = document.getElementById(`customerBody${customerId}`);
                     if (data && Array.isArray(data.products)) {
                         var customer = customers.find(c => c.id === customerId);
+                        if (document.getElementById('noData') !== null) customerBody.removeChild(document.getElementById('noData'));
                         data.products.forEach((item, i) => {
-                            customerBody.innerHTML += `
-                                <tr>
-                                    <td>${item.title || ''}</td>
-                                    <td>${item.title.split(" ")[0] || ''}</td>
-                                    <td>${item.condition.display_name || ''}</td>
-                                    <td>${item.price.display || ''}</td>
-                                    <td><a href="${item.url ? item.url : '#'}" target="_blank">Link</a></td>
-                                    <td style="text-align: center">
-                                        <button type="button" data-row="customer${customer.id}delete${item.id}" class="btn btn-danger btn-sm" onclick="deleteTableRows(${customer.id}, 'customer${customer.id}delete${item.id}')" title="Delete">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            `;
                             customer.products.push({
                                 id: item.id,
                                 productId: item.productId || '',
@@ -286,11 +261,12 @@
                                 displayPrice: item.price.display || '',
                                 url: item.url ? item.url : '#'
                             });
+                            customerBody.innerHTML += addTBodyHtml(customer, item);
                         });
                         var textArea = document.getElementById(`customerTextArea${customerId}`);
                         textArea.value = '';
                     } else {
-                        customerBody.innerHTML = '<tr><td colspan="6" class="text-center">No Data</td></tr>';
+                        customerBody.innerHTML = '<tr id="noData"><td colspan="6" class="text-center">No Data</td></tr>';
                     }
                 })
                 .catch((err) => {
@@ -300,6 +276,35 @@
                 });
             }
 
+            function getAdjustPrice(customer, item) {
+                var base = item.price.amount || 0;
+                var adjusted = 0;
+                if (base <= 69) {
+                    adjusted = customer.low;
+                } else if (base >= 70 && base <= 199) {
+                    adjusted = Math.round(base * customer.middle);
+                } else if (base >= 200) {
+                    adjusted = Math.round(base * customer.high);
+                }
+            }
+
+            function addTBodyHtml(customer, item) {
+                return `
+                    <tr>
+                        <td>${item.title || ''}</td>
+                        <td>${item.title.split(" ")[0] || ''}</td>
+                        <td>${item.condition.display_name || ''}</td>
+                        <td>${item.price.display || ''}</td>
+                        <td>$${getAdjustPrice(customer, item)}</td>
+                        <td><a href="${item.url ? item.url : '#'}" target="_blank">Link</a></td>
+                        <td style="text-align: center">
+                            <button type="button" data-row="customer${customer.id}delete${item.id}" class="btn btn-danger btn-sm" onclick="deleteTableRows(${customer.id}, 'customer${customer.id}delete${item.id}')" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `
+            }
             function refreshProducts(customerId) {
                 var customer = customers.find(c => c.id === customerId);
                 if (customer && Array.isArray(customer.products) && customer.products.length > 0) {
@@ -323,6 +328,7 @@
                             product.brand,
                             product.condition,
                             product.price.display || '$0',
+                            getAdjustPrice(customer, product),
                             product.url
                         ]);
                         totalPrice += product.price.amount
