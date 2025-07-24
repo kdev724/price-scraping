@@ -392,7 +392,11 @@ const getProducts = async (brand) => {
 			per_page: 50              // Max 100 per page
 		}
 	})
+	
 	console.log(testResponse.data.total)
+	if (testResponse.data.total == 0) {
+		step--;
+	}
 	if (testResponse.data.total >= 20000) {
 		priceQuery = [{ price_min: 0, price_max: 10 }, { price_min: 10.001, price_max: 20 }, { price_min: 20.001, price_max: 50 }, { price_min: 50.001, price_max: 100 }, { price_min: 100.001, price_max: 200 }, { price_min: 200.001, price_max: 10000 }]
 		step = priceQuery.length - 1;
@@ -443,8 +447,14 @@ const getProducts = async (brand) => {
 const fetchListings = async (req, res) => {
 	try {
 		let brands = await scrapeBrandsFromWeb();
+		let flag = 0;
 		for (const brand of brands) {
-			await getProducts(brand);
+			if (brand.name == "Buhr Electronics") {
+				flag = 1;
+			}
+			if (flag == 1) {
+				await getProducts(brand);
+			}
 		}
 	} catch (error) {
 		console.error('API Error:', error.response?.data || error.message);
