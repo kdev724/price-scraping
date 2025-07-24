@@ -104,6 +104,10 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 const { title } = require("process");
 async function scrapeBrandsFromWeb() {
+	const brands = require('fs').readFileSync('brands_debug.txt', 'utf8');
+	return JSON.parse(brands);
+}
+async function scrapeBrandsFromWeb1() {
 	console.log('🚀 Starting Ubuntu-compatible Puppeteer scraper...');
 	
 	// Ubuntu-specific browser configuration
@@ -163,18 +167,8 @@ async function scrapeBrandsFromWeb() {
 	  console.log('⏳ Waiting for dynamic content...');
 	  await new Promise(resolve => setTimeout(resolve, 5000))
 	  
-	  // Take screenshot for debugging
-	//   await page.screenshot({ path: 'public/brands_debug.png', fullPage: true });
-	//   console.log('📸 Screenshot saved as brands_debug.png');
-	  
-	//   // Save HTML for debugging
-	//   const html = await page.content();
-	//   require('fs').writeFileSync('brands_debug.html', html);
-	//   console.log('📄 HTML saved as brands_debug.html');
-	  
 	  let brands = [];
 	  
-	  // STRATEGY 1: Try original selector first
 	  console.log('�� Strategy 1: Trying original selector...');
 	  try {
 		await page.waitForSelector('.brands-index__all-brands__section__column a', { timeout: 5000 });
@@ -448,13 +442,16 @@ const fetchListings = async (req, res) => {
 	try {
 		let brands = await scrapeBrandsFromWeb();
 		let flag = 0;
+		require('fs').writeFileSync('brands_debug.txt', JSON.stringify(brands));
+		res.json({brands});
 		for (const brand of brands) {
-			if (brand.name == "Buhr Electronics") {
-				flag = 1;
-			}
-			if (flag == 1) {
-				await getProducts(brand);
-			}
+			await getProducts(brand);
+			// if (brand.name == "Buhr Electronics") {
+			// 	flag = 1;
+			// }
+			// if (flag == 1) {
+			// 	await getProducts(brand);
+			// }
 		}
 	} catch (error) {
 		console.error('API Error:', error.response?.data || error.message);
