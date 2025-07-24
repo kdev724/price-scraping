@@ -378,7 +378,7 @@ const getProducts = async (brand) => {
 	// }
 	brandName = brandName.split("--")[0];
 	console.log('🎸 Brands Found:', brandName);
-	var page = 0, total = 0, priceQuery = {}, step = 0;
+	var page = 0, total = 0, priceQuery = [], step = 0;
 	var testResponse = await axios.get('https://api.reverb.com/api/listings', {
 		headers: {
 			'Authorization': `Bearer ${accessToken}`,
@@ -394,8 +394,8 @@ const getProducts = async (brand) => {
 	})
 	console.log(testResponse.data.total)
 	if (testResponse.data.total >= 20000) {
-		priceQuery = { price_min: 0, price_max: 150 }
-		step = 1;
+		priceQuery = [{ price_min: 0, price_max: 10 }, { price_min: 10.001, price_max: 20 }, { price_min: 20.001, price_max: 50 }, { price_min: 50.001, price_max: 100 }, { price_min: 100.001, price_max: 200 }, { price_min: 200.001, price_max: 10000 }]
+		step = priceQuery.length - 1;
 		console.log("Step 1: Price range set to 0-150");
 	}
 	while (step >= 0) {
@@ -411,7 +411,7 @@ const getProducts = async (brand) => {
 					make: brandName,   // You can change this
 					page: page + 1,
 					per_page: 50,
-					...priceQuery
+					...priceQuery[priceQuery.length - step - 1]
 				}
 			})
 			var total = response.data.total
@@ -436,7 +436,6 @@ const getProducts = async (brand) => {
 			}
 		}
 		page = 0;
-		priceQuery = { price_min: 150.001, price_max: 100000 }
 		step--;
 	}
 
