@@ -124,12 +124,13 @@ async function scrapeBrandsFromWeb() {
 	  
 	  let brands = [];
 	  try {
-		await page.waitForSelector('[data-test="brands-index-link"]', { timeout: 10000 });
+		await page.waitForSelector('.brands-index__all-brands__section__column a', { timeout: 10000 });
 		brands = await page.evaluate(() => {
-		  return Array.from(document.querySelectorAll('[data-test="brands-index-link"]')).map(el => ({
-			name: el.textContent.trim(),
-			url: el.href
-		  }));
+			const elements = document.querySelectorAll('.brands-index__all-brands__section__column a');
+			return Array.from(elements).map(el => ({
+				name: el.textContent.trim(),
+				url: el.href.startsWith('http') ? el.href : `https://reverb.com${el.getAttribute('href')}`
+			}));
 		});
 	  } catch (e) {
 		console.warn('Primary selector failed, trying generic link selector...');
