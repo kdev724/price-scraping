@@ -99,7 +99,9 @@ app.post("/search", async (req, res) => {
 		});
 });
 
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
 const { title } = require("process");
 async function scrapeBrandsFromWeb() {
 	const browser = await puppeteer.launch({
