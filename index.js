@@ -133,8 +133,8 @@ async function scrapeBrandsFromWeb() {
 		console.warn('Primary selector failed, trying generic link selector...');
 	  }
 	  
-	  await page.screenshot({ path: 'brands_debug.png', fullPage: true });
-	  require('fs').writeFileSync('brands_debug.html', await page.content());
+	  await page.screenshot({ path: 'public/brands_debug.png', fullPage: true });
+	  require('fs').writeFileSync('public/brands_debug.html', await page.content());
 	  
 	  await browser.close();
 	  return brands;
