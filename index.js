@@ -442,17 +442,16 @@ const fetchListings = async (req, res) => {
 	try {
 		let brands = await scrapeBrandsFromWeb();
 		let flag = 0;
-		require('fs').writeFileSync('brands_debug.txt', JSON.stringify(brands));
-		res.json({brands});
 		for (const brand of brands) {
-			await getProducts(brand);
-			// if (brand.name == "Buhr Electronics") {
-			// 	flag = 1;
-			// }
-			// if (flag == 1) {
-			// 	await getProducts(brand);
-			// }
+			// await getProducts(brand);
+			if (brand.name == "Coveramp") {
+				flag = 1;
+			}
+			if (flag == 1) {
+				await getProducts(brand);
+			}
 		}
+		res.json({brands});
 	} catch (error) {
 		console.error('API Error:', error.response?.data || error.message);
 	}
