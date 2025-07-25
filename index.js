@@ -394,7 +394,7 @@ const getProducts = async (brand) => {
 	if (testResponse.data.total >= 20000) {
 		priceQuery = [{ price_min: 0, price_max: 10 }, { price_min: 10.001, price_max: 20 }, { price_min: 20.001, price_max: 50 }, { price_min: 50.001, price_max: 100 }, { price_min: 100.001, price_max: 200 }, { price_min: 200.001, price_max: 10000 }]
 		step = priceQuery.length - 1;
-		console.log("Step 1: Price range set to 0-150");
+		console.log("Step 1: Price range set to 0-10");
 	}
 	while (step >= 0) {
 		while ((page == 0 || page * 50 < total) && page < 400) {
@@ -427,7 +427,7 @@ const getProducts = async (brand) => {
 				});
 				newPedal.save();
 			});
-			if (total > page * 50) {
+			if (total > page * 50 || total == 0) {
 				console.log(total - page * 50, page);
 				page++;
 				// fetchListings();
