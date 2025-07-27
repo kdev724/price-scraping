@@ -40,12 +40,10 @@ app.get("/", (req, res) => {
 });
 // New /search endpoint for Reverb Combined Marketplace Search
 app.post("/initial", async (req, res) => {
-	fetchListings(req, res);
-
 	Pedal.deleteMany({title: {$regex: "D'Addario"}}).then(() => {
 		fetchListings(req, res);
 	});
-})
+})	
 
 app.post("/search", async (req, res) => {
 	let pedals = [];
@@ -203,6 +201,7 @@ const fetchListings = async (req, res) => {
 				flag = 1;
 			}
 			if (flag == 1) {
+				console.log(111)
 				await getProducts(brand);
 			}
 		}
