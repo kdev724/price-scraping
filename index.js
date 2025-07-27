@@ -40,7 +40,7 @@ app.get("/", (req, res) => {
 });
 // New /search endpoint for Reverb Combined Marketplace Search
 app.post("/initial", async (req, res) => {
-	Pedal.deleteMany({title: {$regex: "D'Addario"}}).then(() => {
+	Pedal.deleteMany({brand: "JET"}).then(() => {
 		fetchListings(req, res);
 	});
 })	
@@ -109,7 +109,8 @@ async function scrapeBrandsFromWeb() {
 const accessToken = '0e5ce3b5378045fd27810212c28ad211ae420fa5515a0a56aded4b9fd402cbd0';
 
 const traitValues = {
-	"novo": "novo-1"
+	"novo": "novo-1",
+	"jet": "jet-1"
 }
 
 const getProducts = async (brand) => {
@@ -197,11 +198,10 @@ const fetchListings = async (req, res) => {
 		let flag = 0;
 		for (const brand of brands) {
 			// await getProducts(brand);
-			if (brand.name == "D'Addario") {
+			if (brand.name == "JET") {
 				flag = 1;
 			}
 			if (flag == 1) {
-				console.log(111)
 				await getProducts(brand);
 			}
 		}
