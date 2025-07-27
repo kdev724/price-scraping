@@ -40,7 +40,7 @@ app.get("/", (req, res) => {
 });
 // New /search endpoint for Reverb Combined Marketplace Search
 app.post("/initial", async (req, res) => {
-	Pedal.deleteMany({brand: "JET"}).then(() => {
+	Pedal.deleteMany({brand: "RebelRelic"}).then(() => {
 		fetchListings(req, res);
 	});
 })	
@@ -110,7 +110,8 @@ const accessToken = '0e5ce3b5378045fd27810212c28ad211ae420fa5515a0a56aded4b9fd40
 
 const traitValues = {
 	"novo": "novo-1",
-	"jet": "jet-1"
+	"jet": "jet-1",
+	"rebelrelic": "rebelrelic-1"
 }
 
 const getProducts = async (brand) => {
@@ -198,7 +199,7 @@ const fetchListings = async (req, res) => {
 		let flag = 0;
 		for (const brand of brands) {
 			// await getProducts(brand);
-			if (brand.name == "JET") {
+			if (brand.name == "RebelRelic") {
 				flag = 1;
 			}
 			if (flag == 1) {
