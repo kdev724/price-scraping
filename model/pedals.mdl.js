@@ -5,7 +5,6 @@ const PedalSchema = new Schema({
   conditionUuid: String,
   title: String,
   brand: String,
-  productId: String,
   condition: {
     uuid: String,
     display_name: String,
