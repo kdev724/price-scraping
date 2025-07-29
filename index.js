@@ -31,6 +31,18 @@ const app = express();
 const PORT = process.env.PORT || 80;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Add security headers to resolve cross-origin-isolated violations
+app.use((req, res, next) => {
+	// Set Cross-Origin-Embedder-Policy to allow cross-origin isolation
+	res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+	// Set Cross-Origin-Opener-Policy to allow cross-origin isolation
+	res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
+	// Set Content-Security-Policy to allow external resources
+	res.setHeader('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:;");
+	next();
+});
+
 // Serve static files from /public (Heroku compatible)
 app.use(express.static(path.join(__dirname, "public")));
 console.log(path.join(__dirname, "public"));
@@ -73,6 +85,7 @@ app.post("/search", async (req, res) => {
 				foundPedals.forEach((item, i) => {
 					var pedal = pedals.find(p => item.title.toLowerCase().includes(p.name.toLowerCase()));
 					if (!pedal) return;
+					console.log(item)
 					if (item.condition.display_name.toLocaleLowerCase() === pedal.condition.toLocaleLowerCase()) {
 						products.push({
 							id: i + 1,
