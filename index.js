@@ -71,22 +71,71 @@ app.post("/search", async (req, res) => {
 		titles.push(pedal.name);
 	});
 	console.log(pedals)
+	
+	// Create a more flexible search query
+	let searchQueries = [];
+	titles.forEach(title => {
+		// Normalize the search title (remove special characters, convert to lowercase)
+		const normalizedTitle = title.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+		
+		// Split the normalized title into words for more flexible matching
+		const words = normalizedTitle.split(' ').filter(word => word.length > 2);
+		
+		// Create multiple search patterns for better matching
+		searchQueries.push(
+			{ title: { $regex: title, $options: "i" } }, // Full title match
+			{ title: { $regex: normalizedTitle, $options: "i" } }, // Normalized title match
+			...words.map(word => ({ title: { $regex: word, $options: "i" } })) // Individual word matches
+		);
+		
+		// Create variations of the title (remove spaces, add hyphens, etc.)
+		const variations = [
+			title.replace(/\s+/g, ''), // Remove all spaces
+			title.replace(/\s+/g, '-'), // Replace spaces with hyphens
+			title.replace(/\s+/g, '_'), // Replace spaces with underscores
+			normalizedTitle.replace(/\s+/g, ''), // Normalized without spaces
+			normalizedTitle.replace(/\s+/g, '-'), // Normalized with hyphens
+		];
+		
+		variations.forEach(variation => {
+			if (variation.length > 2) {
+				searchQueries.push({ title: { $regex: variation, $options: "i" } });
+			}
+		});
+	});
+	
 	Pedal.find({
-		$or: [
-			{ title: { $in: titles } }, // exact match
-			...titles.map(pedal => ({
-				title: { $regex: pedal, $options: "i" } // case-insensitive substring match
-			}))
-		]
+		$or: searchQueries
 	})
 		.then((foundPedals) => {
 			if (foundPedals.length > 0) {
 				var products = []
 				foundPedals.forEach((item, i) => {
-					var pedal = pedals.find(p => item.title.toLowerCase().includes(p.name.toLowerCase()));
-					if (!pedal) return;
-					console.log(item)
-					if (item.condition.display_name.toLocaleLowerCase() === pedal.condition.toLocaleLowerCase()) {
+					// Check if any of the search titles match this item
+					const matchingPedal = pedals.find(p => {
+						const searchTitle = p.name.toLowerCase();
+						const itemTitle = item.title.toLowerCase();
+						
+						// Normalize both titles for comparison
+						const normalizedSearch = searchTitle.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+						const normalizedItem = itemTitle.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+						
+						// Check if the search title is contained in the item title
+						// or if the item title contains key words from the search
+						// or if normalized versions match
+						return itemTitle.includes(searchTitle) || 
+							   normalizedItem.includes(normalizedSearch) ||
+							   searchTitle.split(' ').some(word => 
+								   word.length > 2 && itemTitle.includes(word)
+							   ) ||
+							   normalizedSearch.split(' ').some(word => 
+								   word.length > 2 && normalizedItem.includes(word)
+							   );
+					});
+					
+					// If we found a matching pedal, include it regardless of condition
+					// (removed the strict condition matching)
+					if (matchingPedal) {
 						products.push({
 							id: i + 1,
 							title: item.title,
@@ -99,6 +148,27 @@ app.post("/search", async (req, res) => {
 						});
 					}
 				});
+				
+				// Sort results by relevance (exact matches first, then partial matches)
+				products.sort((a, b) => {
+					const aExactMatch = titles.some(title => {
+						const normalizedSearch = title.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+						const normalizedItem = a.title.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+						return a.title.toLowerCase().includes(title.toLowerCase()) || 
+							   normalizedItem.includes(normalizedSearch);
+					});
+					const bExactMatch = titles.some(title => {
+						const normalizedSearch = title.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+						const normalizedItem = b.title.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+						return b.title.toLowerCase().includes(title.toLowerCase()) || 
+							   normalizedItem.includes(normalizedSearch);
+					});
+					
+					if (aExactMatch && !bExactMatch) return -1;
+					if (!aExactMatch && bExactMatch) return 1;
+					return 0;
+				});
+				
 				return res.json({ products });
 			} else {
 				return res.status(404).json({ error: "No pedals found" });
