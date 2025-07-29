@@ -34,6 +34,16 @@
                 height: 100px;
                 border: 1px solid #000 !important;
             }
+            .productCheckbox {
+                cursor: pointer;
+                transform: scale(1.2);
+            }
+            .table tr.selected {
+                background-color: #e3f2fd !important;
+            }
+            .table tr:hover {
+                background-color: #f8f9fa;
+            }
         </style>
     </head>
     <body>
@@ -170,11 +180,15 @@
                         <textarea id="customerTextArea${customer.id}" class="form-control mb-2" placeholder="Please enter product name">Fender Vintage, Very good</textarea>
                         <div style="margin-top: 20px">
                             <button class="btn btn-success mb-2" onclick="saveProducts(${customer.id})">Calculate Prices</button>
+                            <button class="btn btn-danger mb-2" onclick="deleteSelectedRows(${customer.id})">Delete Selected</button>
                             <button class="btn btn-primary" onclick="refreshProducts(${customer.id})" style="float: right"><span class="glyphicon glyphicon-refresh"></span> Refresh</button>
                         </div>
                         <table id="customerTable${customer.id}" class="table table-bordered" style="margin-top: 10px">
                             <thead class="table-light">
                                 <tr>
+                                    <th>
+                                        <input type="checkbox" id="selectAll${customer.id}" onchange="toggleSelectAll(${customer.id})" title="Select All">
+                                    </th>
                                     <th>Title</th>
                                     <th>Brand</th>
                                     <th>Condition</th>
@@ -298,6 +312,9 @@
             function addTBodyHtml(customer, item) {
                 return `
                     <tr>
+                        <td>
+                            <input type="checkbox" class="productCheckbox" data-row="customer${customer.id}delete${item.id}" data-customer-id="${customer.id}" data-product-id="${item.id}">
+                        </td>
                         <td>${item.title || ''}</td>
                         <td>${item.title.split(" ")[0] || ''}</td>
                         <td>${item.condition.display_name || ''}</td>
@@ -320,6 +337,83 @@
                     customerBody.innerHTML = "";
                     customer.products = [];
                     getProducts(customerId, pedals);
+                }
+            }
+
+            function toggleSelectAll(customerId) {
+                const selectAllCheckbox = document.getElementById(`selectAll${customerId}`);
+                const productCheckboxes = document.querySelectorAll(`#customerTable${customerId} tbody tr .productCheckbox`);
+                productCheckboxes.forEach(checkbox => {
+                    checkbox.checked = selectAllCheckbox.checked;
+                    updateRowSelection(checkbox);
+                });
+            }
+
+            function updateRowSelection(checkbox) {
+                const row = checkbox.closest('tr');
+                if (checkbox.checked) {
+                    row.classList.add('selected');
+                } else {
+                    row.classList.remove('selected');
+                }
+            }
+
+            // Add event listeners for individual checkboxes
+            document.addEventListener('change', function(e) {
+                if (e.target.classList.contains('productCheckbox')) {
+                    updateRowSelection(e.target);
+                    
+                    // Update select all checkbox
+                    const customerId = e.target.dataset.customerId;
+                    const productCheckboxes = document.querySelectorAll(`#customerTable${customerId} tbody tr .productCheckbox`);
+                    const selectAllCheckbox = document.getElementById(`selectAll${customerId}`);
+                    
+                    if (selectAllCheckbox) {
+                        const allChecked = Array.from(productCheckboxes).every(checkbox => checkbox.checked);
+                        const anyChecked = Array.from(productCheckboxes).some(checkbox => checkbox.checked);
+                        
+                        selectAllCheckbox.checked = allChecked;
+                        selectAllCheckbox.indeterminate = anyChecked && !allChecked;
+                    }
+                }
+            });
+
+            function deleteSelectedRows(customerId) {
+                const productCheckboxes = document.querySelectorAll(`#customerTable${customerId} tbody tr .productCheckbox`);
+                const selectedRows = Array.from(productCheckboxes).filter(checkbox => checkbox.checked);
+                
+                if (selectedRows.length === 0) {
+                    alert('No rows selected for deletion.');
+                    return;
+                }
+
+                if (!confirm(`Are you sure you want to delete ${selectedRows.length} selected rows?`)) {
+                    return;
+                }
+
+                // Get the customer data
+                const customer = customers.find(c => c.id === customerId);
+                if (!customer) return;
+
+                // Remove selected rows from DOM and update customer data
+                selectedRows.forEach(checkbox => {
+                    const row = checkbox.closest('tr');
+                    const productId = checkbox.dataset.productId;
+                    
+                    // Remove from DOM
+                    row.remove();
+                    
+                    // Remove from customer products array
+                    customer.products = customer.products.filter(product => product.id != productId);
+                    
+                    // Add to deleted rows array
+                    deletedRows.push(`customer${customerId}delete${productId}`);
+                });
+
+                // Reset select all checkbox
+                const selectAllCheckbox = document.getElementById(`selectAll${customerId}`);
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = false;
                 }
             }
 
