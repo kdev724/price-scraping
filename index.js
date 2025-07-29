@@ -103,7 +103,7 @@ app.post("/search", async (req, res) => {
 			}
 		});
 	});
-	
+	console.log(searchQueries)
 	Pedal.find({
 		$or: searchQueries
 	})
