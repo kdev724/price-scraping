@@ -166,7 +166,6 @@ const getProducts = async (brand) => {
 				})
 				var total = response.data.total
 				const listings = response.data.listings;
-				console.log(listings[0].photos[0]._links)
 				listings.forEach(item => {
 					const title = item.title;
 					const newPedal = new Pedal({
