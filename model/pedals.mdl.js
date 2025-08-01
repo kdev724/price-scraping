@@ -18,7 +18,14 @@ const PedalSchema = new Schema({
     display: String
   },
   url: String,
-  photos: [String],
+  photos: [{
+    _links: {
+      large_crop: {href:String},
+      full: {href:String},
+      small_crop: {href:String},
+      thumbnail: {href:String}
+    }
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 
