@@ -40,7 +40,7 @@ app.get("/", (req, res) => {
 });
 // New /search endpoint for Reverb Combined Marketplace Search
 app.post("/initial", async (req, res) => {
-	Pedal.deleteMany({brand: "JJ Electronic"}).then(() => {
+	Pedal.deleteMany({brand: "Yamaha"}).then(() => {
 		fetchListings(req, res);
 	});
 })	
@@ -199,7 +199,7 @@ const fetchListings = async (req, res) => {
 		let flag = 0;
 		for (const brand of brands) {
 			// await getProducts(brand);
-			if (brand.name == "JJ Electronic") {
+			if (brand.name == "Yamaha") {
 				flag = 1;
 			}
 			if (flag == 1) {
