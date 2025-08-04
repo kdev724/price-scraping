@@ -61,6 +61,20 @@
         table {
             width: 100%;
         }
+        
+        .product-image {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        
+        .no-image {
+            color: #999;
+            font-style: italic;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 
@@ -220,12 +234,12 @@
                     ) {
                         table.deleteRow(table.rows.length - 1);
                     }
-                    // Indices for numeric columns
-                    let idxLow = 3,
-                        idxMiddle = 4,
-                        idxHigh = 5,
-                        idx30d = 6,
-                        idxAdj = 8;
+                    // Indices for numeric columns (adjusted for image column)
+                    let idxLow = 4,
+                        idxMiddle = 5,
+                        idxHigh = 6,
+                        idx30d = 7,
+                        idxAdj = 9;
                     let totalLow = 0,
                         totalMiddle = 0,
                         totalHigh = 0,
@@ -251,7 +265,7 @@
                     let totalRow = document.createElement("tr");
                     totalRow.style.fontWeight = "bold";
                     totalRow.style.background = "#f4f4f4";
-                    totalRow.innerHTML = `<td colspan='3'>Total</td><td>${totalLow.toFixed(
+                    totalRow.innerHTML = `<td colspan='4'>Total</td><td>${totalLow.toFixed(
                         2
                     )}</td><td>${totalMiddle.toFixed(2)}</td><td>${totalHigh.toFixed(
                         2
@@ -399,7 +413,7 @@
                             }
                             
                             tr.innerHTML = `
-                                <td>${imageUrl ? `<img src="${imageUrl}" alt="${row.pedal}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">` : '<span style="color: #999;">No image</span>'}</td>
+                                <td>${imageUrl ? `<img src="${imageUrl}" alt="${row.pedal}" class="product-image">` : '<span class="no-image">No image</span>'}</td>
                                 <td>${row.pedal}</td>
                                 <td>${row.condition ?? ""}</td>
                                 <td>${row.brand}</td>
@@ -445,12 +459,12 @@
                     ) {
                         table.deleteRow(table.rows.length - 1);
                     }
-                    // Indices for numeric columns
-                    let idxLow = 3,
-                        idxMiddle = 4,
-                        idxHigh = 5,
-                        idx30d = 6,
-                        idxAdj = 8;
+                    // Indices for numeric columns (adjusted for image column)
+                    let idxLow = 4,
+                        idxMiddle = 5,
+                        idxHigh = 6,
+                        idx30d = 7,
+                        idxAdj = 9;
                     let totalLow = 0,
                         totalMiddle = 0,
                         totalHigh = 0,
@@ -476,7 +490,7 @@
                     let totalRow = document.createElement("tr");
                     totalRow.style.fontWeight = "bold";
                     totalRow.style.background = "#f4f4f4";
-                    totalRow.innerHTML = `<td colspan='3'>Total</td><td>${totalLow.toFixed(
+                    totalRow.innerHTML = `<td colspan='4'>Total</td><td>${totalLow.toFixed(
                         2
                     )}</td><td>${totalMiddle.toFixed(2)}</td><td>${totalHigh.toFixed(
                         2
