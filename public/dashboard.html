@@ -9,10 +9,15 @@
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <!-- Bootstrap Icons -->
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+        <!-- Google Fonts -->
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
         <style>
             body {
                 padding: 20px;
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                font-weight: 400;
+                line-height: 1.6;
             }
             .btn {
                 margin-right: 10px;
@@ -55,6 +60,35 @@
                 color: #999;
                 font-style: italic;
                 font-size: 0.9em;
+            }
+            #loadingRow {
+                background-color: #f8f9fa;
+            }
+            #loadingRow td {
+                padding: 2rem !important;
+            }
+            
+            /* Beautiful typography enhancements */
+            h1, h2, h3, h4, h5, h6 {
+                font-weight: 600;
+                letter-spacing: -0.025em;
+            }
+            
+            .table th {
+                font-weight: 600;
+                font-size: 0.9em;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: #6c757d;
+            }
+            
+            .btn {
+                font-weight: 500;
+                letter-spacing: 0.025em;
+            }
+            
+            .form-control {
+                font-family: inherit;
             }
         </style>
     </head>
@@ -194,6 +228,7 @@
                         <div style="margin-top: 20px">
                             <button class="btn btn-success mb-2" onclick="saveProducts(${customer.id})">Calculate Prices</button>
                             <button class="btn btn-danger mb-2" onclick="deleteSelectedRows(${customer.id})">Delete Selected</button>
+                            <button class="btn btn-warning mb-2" onclick="deleteUnselectedRows(${customer.id})">Recalculate</button>
                             <button class="btn btn-primary" onclick="refreshProducts(${customer.id})" style="float: right"><span class="glyphicon glyphicon-refresh"></span> Refresh</button>
                         </div>
                         <table id="customerTable${customer.id}" class="table table-bordered" style="margin-top: 10px">
@@ -271,6 +306,22 @@
             }
 
             function getProducts(customerId, pedals) {
+                var customerBody = document.getElementById(`customerBody${customerId}`);
+                
+                // Show loading screen
+                customerBody.innerHTML = `
+                    <tr id="loadingRow">
+                        <td colspan="9" class="text-center">
+                            <div class="d-flex justify-content-center align-items-center">
+                                <div class="spinner-border text-primary me-3" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <span class="text-muted">Calculating prices...</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                
                 fetch('/search', {
                     method: 'POST',
                     headers: {
@@ -280,7 +331,12 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    var customerBody = document.getElementById(`customerBody${customerId}`);
+                    // Remove loading screen
+                    var loadingRow = document.getElementById('loadingRow');
+                    if (loadingRow) {
+                        loadingRow.remove();
+                    }
+                    
                     if (data && Array.isArray(data.products)) {
                         var customer = customers.find(c => c.id === customerId);
                         if (document.getElementById('noData') !== null) customerBody.removeChild(document.getElementById('noData'));
@@ -306,8 +362,12 @@
                 })
                 .catch((err) => {
                     console.log(err)
-                    // var customerBody = document.getElementById(`customerBody${customerId}`);
-                    // customerBody.innerHTML = '<tr><td colspan="6" class="text-center">No Data</td></tr>';
+                    // Remove loading screen and show error
+                    var loadingRow = document.getElementById('loadingRow');
+                    if (loadingRow) {
+                        loadingRow.remove();
+                    }
+                    customerBody.innerHTML = '<tr><td colspan="9" class="text-center text-danger">Error loading data</td></tr>';
                 });
             }
 
@@ -359,7 +419,21 @@
                 if (customer && Array.isArray(customer.products) && customer.products.length > 0) {
                     let pedals = customer.products.map(product => ({ name: product.title, condition: product.condition }));
                     var customerBody = document.getElementById(`customerBody${customerId}`);
-                    customerBody.innerHTML = "";
+                    
+                    // Show loading screen
+                    customerBody.innerHTML = `
+                        <tr id="loadingRow">
+                            <td colspan="9" class="text-center">
+                                <div class="d-flex justify-content-center align-items-center">
+                                    <div class="spinner-border text-primary me-3" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <span class="text-muted">Refreshing prices...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    
                     customer.products = [];
                     getProducts(customerId, pedals);
                 }
@@ -402,6 +476,45 @@
                     }
                 }
             });
+
+            function deleteUnselectedRows(customerId) {
+                const productCheckboxes = document.querySelectorAll(`#customerTable${customerId} tbody tr .productCheckbox`);
+                const unselectedRows = Array.from(productCheckboxes).filter(checkbox => !checkbox.checked);
+                
+                if (unselectedRows.length === 0) {
+                    alert('No unselected rows to delete.');
+                    return;
+                }
+
+                if (!confirm(`Are you sure you want to delete ${unselectedRows.length} unselected rows?`)) {
+                    return;
+                }
+
+                // Get the customer data
+                const customer = customers.find(c => c.id === customerId);
+                if (!customer) return;
+
+                // Remove unselected rows from DOM and update customer data
+                unselectedRows.forEach(checkbox => {
+                    const row = checkbox.closest('tr');
+                    const productId = checkbox.dataset.productId;
+                    
+                    // Remove from DOM
+                    row.remove();
+                    
+                    // Remove from customer products array
+                    customer.products = customer.products.filter(product => product.id != productId);
+                    
+                    // Add to deleted rows array
+                    deletedRows.push(`customer${customerId}delete${productId}`);
+                });
+
+                // Reset select all checkbox since we're keeping only selected items
+                const selectAllCheckbox = document.getElementById(`selectAll${customerId}`);
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = true;
+                }
+            }
 
             function deleteSelectedRows(customerId) {
                 const productCheckboxes = document.querySelectorAll(`#customerTable${customerId} tbody tr .productCheckbox`);
