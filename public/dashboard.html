@@ -44,6 +44,18 @@
             .table tr:hover {
                 background-color: #f8f9fa;
             }
+            .product-image {
+                width: 50px;
+                height: 50px;
+                object-fit: cover;
+                border-radius: 4px;
+                border: 1px solid #ddd;
+            }
+            .no-image {
+                color: #999;
+                font-style: italic;
+                font-size: 0.9em;
+            }
         </style>
     </head>
     <body>
@@ -52,7 +64,7 @@
             Select xlsx File
             <input type="file" id="xlsxFileInput" accept=".xlsx" style="display:none" onchange="handleXlsxUpload(event)">
         </label>
-        <button class="btn btn-danger" onclick="dataInitial()" style="position: fixed; left: 50%; transform: translateX(-50%);">Initial Data</button>
+        <button class="btn btn-danger" onclick="dataInitial()" style="position: absolute; left: 50%; transform: translateX(-50%);">Initial Data</button>
         <button class="btn btn-primary" onclick="downloadExcel()" style="float: right;">Download</button>
         <div id="dashboard"></div>
         <!-- Bootstrap Modal -->
@@ -148,7 +160,8 @@
                                                 display: group[i][3],
                                                 amount: parseFloat(group[i][3].replace(/[^0-9.-]+/g, ""))
                                             },
-                                            url: group[i][4] || '#'
+                                            url: group[i][4] || '#',
+                                            photos: []
                                         });
                                     }
                                     saveCustomerTable(customer);
@@ -189,6 +202,7 @@
                                     <th>
                                         <input type="checkbox" id="selectAll${customer.id}" onchange="toggleSelectAll(${customer.id})" title="Select All">
                                     </th>
+                                    <th>Image</th>
                                     <th>Title</th>
                                     <th>Brand</th>
                                     <th>Condition</th>
@@ -279,14 +293,15 @@
                                 condition: item.condition.display_name || '',
                                 price: item.price,
                                 displayPrice: item.price.display || '',
-                                url: item.url ? item.url : '#'
+                                url: item.url ? item.url : '#',
+                                photos: item.photos || []
                             });
                             customerBody.innerHTML += addTBodyHtml(customer, item);
                         });
                         var textArea = document.getElementById(`customerTextArea${customerId}`);
                         textArea.value = '';
                     } else {
-                        customerBody.innerHTML = '<tr id="noData"><td colspan="6" class="text-center">No Data</td></tr>';
+                        customerBody.innerHTML = '<tr id="noData"><td colspan="9" class="text-center">No Data</td></tr>';
                     }
                 })
                 .catch((err) => {
@@ -310,11 +325,21 @@
             }
 
             function addTBodyHtml(customer, item) {
+                // Get image URL from photos array if available
+                let imageUrl = "";
+                if (item.photos && item.photos.length > 0 && item.photos[0]._links) {
+                    // Prefer thumbnail, fallback to small_crop, then full
+                    imageUrl = item.photos[0]._links.thumbnail?.href || 
+                             item.photos[0]._links.small_crop?.href || 
+                             item.photos[0]._links.full?.href || "";
+                }
+                
                 return `
                     <tr>
                         <td>
                             <input type="checkbox" class="productCheckbox" data-row="customer${customer.id}delete${item.id}" data-customer-id="${customer.id}" data-product-id="${item.id}">
                         </td>
+                        <td>${imageUrl ? `<img src="${imageUrl}" alt="${item.title}" class="product-image">` : '<span class="no-image">No image</span>'}</td>
                         <td>${item.title || ''}</td>
                         <td>${item.title.split(" ")[0] || ''}</td>
                         <td>${item.condition.display_name || ''}</td>
