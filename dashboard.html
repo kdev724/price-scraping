@@ -329,7 +329,7 @@
                 if (!table) {
                     // If no table, create a new one with headers
                     table = document.createElement("table");
-                    table.innerHTML = `<tr><th>Pedal</th><th>Condition</th><th>Brand</th><th>Low</th><th>Middle</th><th>High</th><th>30d Ago</th><th>Currency</th><th>Adjusted Value</th><th>Delete</th></tr>`;
+                    table.innerHTML = `<tr><th>Image</th><th>Pedal</th><th>Condition</th><th>Brand</th><th>Low</th><th>Middle</th><th>High</th><th>30d Ago</th><th>Currency</th><th>Adjusted Value</th><th>Delete</th></tr>`;
                     resultsDiv.appendChild(table);
                 }
                 // Remove any existing total row (last row, if bold)
@@ -339,7 +339,7 @@
                 }
                 // Add a loading row
                 const loadingRow = document.createElement("tr");
-                loadingRow.innerHTML = `<td colspan='10'><em>Processing...</em></td>`;
+                loadingRow.innerHTML = `<td colspan='11'><em>Processing...</em></td>`;
                 table.appendChild(loadingRow);
                 try {
                     const res = await fetch("/price", {
@@ -352,7 +352,7 @@
                     loadingRow.remove();
                     if (!Array.isArray(data) || data.length === 0) {
                         const row = document.createElement("tr");
-                        row.innerHTML = `<td colspan='10'><b>No data found.</b></td>`;
+                        row.innerHTML = `<td colspan='11'><b>No data found.</b></td>`;
                         table.appendChild(row);
                         return;
                     }
@@ -373,7 +373,7 @@
                     for (const row of data) {
                         let tr = document.createElement("tr");
                         if (row.error) {
-                            tr.innerHTML = `<td colspan='10' style='color:red;'>${row.error}</td>`;
+                            tr.innerHTML = `<td colspan='11' style='color:red;'>${row.error}</td>`;
                         } else {
                             // Always show Delete button, even for notFound
                             let adjusted = "";
@@ -389,7 +389,17 @@
                                     }
                                 }
                             }
+                            // Get image URL from photos array if available
+                            let imageUrl = "";
+                            if (row.photos && row.photos.length > 0 && row.photos[0]._links) {
+                                // Prefer thumbnail, fallback to small_crop, then full
+                                imageUrl = row.photos[0]._links.thumbnail?.href || 
+                                         row.photos[0]._links.small_crop?.href || 
+                                         row.photos[0]._links.full?.href || "";
+                            }
+                            
                             tr.innerHTML = `
+                                <td>${imageUrl ? `<img src="${imageUrl}" alt="${row.pedal}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">` : '<span style="color: #999;">No image</span>'}</td>
                                 <td>${row.pedal}</td>
                                 <td>${row.condition ?? ""}</td>
                                 <td>${row.brand}</td>
@@ -421,7 +431,7 @@
                 } catch (err) {
                     loadingRow.remove();
                     const row = document.createElement("tr");
-                    row.innerHTML = `<td colspan='10'><b>Error:</b> ${err.message}</td>`;
+                    row.innerHTML = `<td colspan='11'><b>Error:</b> ${err.message}</td>`;
                     table.appendChild(row);
                 }
                 // Helper to recalculate totals and update total row
