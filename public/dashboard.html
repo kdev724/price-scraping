@@ -567,13 +567,22 @@
                             product.brand,
                             product.condition,
                             product.price.display || '$0',
-                            getAdjustPrice(customer, product),
+                            getAdjustPrice(customer, product) || '$0',
                             product.url
                         ]);
                         totalPrice += product.price.amount
                     });
-                    sheets2.push(["", "", "", "Total Price", "$" + totalPrice]);
-                    sheets2.push(["", "", "", "", ""]);
+                    var offer = 0;
+                    if (totalPrice <= 69) {
+                        offer = customer.low;
+                    } else if (totalPrice >= 70 && totalPrice <= 199) {
+                        offer = customer.middle;
+                    } else if (totalPrice >= 200) {
+                        offer = customer.high;
+                    }
+                    sheets2.push(["Total Fair Market Value", "$" + totalPrice]);
+                    sheets2.push([`Total Offer(FMV * ${offer}%)`, "$" + getAdjustPrice(customer, {price: {amount: totalPrice}})]);
+                    sheets2.push(["", "", "", "", "", ""]);
                     sheets1.push([customer.name, "$" + totalPrice]);
                 })
                 const sheet1 = XLSX.utils.aoa_to_sheet(sheets1);
