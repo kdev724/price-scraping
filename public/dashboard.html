@@ -581,7 +581,7 @@
                         offer = customer.high;
                     }
                     sheets2.push(["Total Fair Market Value", "$" + totalPrice]);
-                    sheets2.push([`Total Offer(FMV * ${offer}%)`, "$" + getAdjustPrice(customer, {price: {amount: totalPrice}})]);
+                    sheets2.push([`Total Offer (FMV * ${offer * 100}%)`, "$" + getAdjustPrice(customer, {price: {amount: totalPrice}})]);
                     sheets2.push(["", "", "", "", "", ""]);
                     sheets1.push([customer.name, "$" + totalPrice]);
                 })
