@@ -199,7 +199,7 @@ const fetchListings = async (req, res) => {
 		let flag = 0;
 		for (const brand of brands) {
 			// await getProducts(brand);
-			if (brand.name == "Yamaha") {
+			if (brand.name == "Fender") {
 				flag = 1;
 			}
 			if (flag == 1) {

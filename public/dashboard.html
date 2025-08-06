@@ -184,8 +184,11 @@
                             }
                             result.forEach((group) => {
                                 if (group.length > 2) {
+                                    console.log(group);
                                     var customer = {id: customerId, name: group[0][0], products: [], low: 20, middle: 0.7, high: 0.75};
                                     for (var i = 1; i < group.length - 1; i++) {
+                                        if (group[i].length < 4) continue;
+                                        console.log(group[i][2]);
                                         customer.products.push({
                                             title: group[i][0],
                                             brand: group[i][1],
@@ -194,8 +197,8 @@
                                                 display: group[i][3],
                                                 amount: parseFloat(group[i][3].replace(/[^0-9.-]+/g, ""))
                                             },
-                                            url: group[i][4] || '#',
-                                            photos: []
+                                            url: group[i][5] || '#',
+                                            photos: [{_links: {thumbnail: {href: group[i][6] || ''}}}]
                                         });
                                     }
                                     saveCustomerTable(customer);
@@ -372,9 +375,11 @@
             }
 
             function getAdjustPrice(customer, item) {
+                console.log(customer, item);
                 var base = item.price.amount || 0;
                 var adjusted = 0;
-                if (base <= 69) {
+                if (base < customer.low) return base;
+                if (base <= 69 && base >= customer.low) {
                     adjusted = customer.low;
                 } else if (base >= 70 && base <= 199) {
                     adjusted = Math.round(base * customer.middle);
@@ -402,7 +407,7 @@
                         <td>${imageUrl ? `<img src="${imageUrl}" alt="${item.title}" class="product-image">` : '<span class="no-image">No image</span>'}</td>
                         <td>${item.title || ''}</td>
                         <td>${item.title.split(" ")[0] || ''}</td>
-                        <td>${item.condition.display_name || ''}</td>
+                        <td>${typeof(item.condition) == "string" ? item.condition : item.condition.display_name}</td>
                         <td>${item.price.display || ''}</td>
                         <td>$${getAdjustPrice(customer, item)}</td>
                         <td><a href="${item.url ? item.url : '#'}" target="_blank">Link</a></td>
@@ -559,7 +564,7 @@
             function downloadExcel() {
                 var sheets1 = [["Customer Name", "Total Price"]], sheets2 = [];
                 customers.forEach((customer) => {
-                    sheets2.push([customer.name, "Brand", "Condition", "Price", "Link"])
+                    sheets2.push([customer.name, "Brand", "Condition", "Price", "Adjusted Price", "Link", "Photo"])
                     var totalPrice = 0;
                     customer.products.forEach((product) => {
                         sheets2.push([
@@ -568,7 +573,8 @@
                             product.condition,
                             product.price.display || '$0',
                             getAdjustPrice(customer, product) || '$0',
-                            product.url
+                            product.url,
+                            product.photos.length > 0 ? product.photos[0]._links.thumbnail.href : ''
                         ]);
                         totalPrice += product.price.amount
                     });
