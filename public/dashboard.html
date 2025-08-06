@@ -377,13 +377,13 @@
             function getAdjustPrice(customer, item) {
                 console.log(customer, item);
                 var base = item.price.amount || 0;
-                var adjusted = 0;
+                var adjusted = base;
                 if (base < customer.low) return base;
                 if (base <= 69 && base >= customer.low) {
                     adjusted = customer.low;
                 } else if (base >= 70 && base <= 199) {
                     adjusted = Math.round(base * customer.middle);
-                } else if (base >= 200) {
+                } else if (base >= 199) {
                     adjusted = Math.round(base * customer.high);
                 }
                 return adjusted;
