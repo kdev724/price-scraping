@@ -160,6 +160,24 @@
                 reader.onload = function (event) {
                         const data = new Uint8Array(event.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
+                        if (workbook.SheetNames.length === 1) {
+                            var sheet = workbook.Sheets[workbook.SheetNames[0]];
+                            var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                            var docs = JSON.parse(JSON.stringify(rows, null, 2))
+                            console.log(docs);
+                            var customer = {id: customerId, name: "Unknown", products: [], low: 20, middle: 0.7, high: 0.75};
+                            for (var i = 0; i < docs.length; i++) {
+                                if (docs[i].length == 0) continue;
+                                customer.products.push({title: docs[i][0], condition: docs[i][1], price: {}, photos: []});
+                            }
+
+                            console.log(customer);
+                            saveCustomerTable(customer);
+                            customers.push(customer);
+                            refreshProducts(customerId);
+                            customerId++;
+                            return;
+                        }
                         workbook.SheetNames.forEach(sheetName => {
                         const sheet = workbook.Sheets[sheetName];
                         if (sheetName == "Extra Data") {
@@ -219,7 +237,10 @@
                             <div class="d-flex align-items-center my-4">
                                 <hr class="flex-grow-1 me-3">
                                 <span style="font-weight: bold; color: #888; font-size: 1.1em; letter-spacing: 2px; white-space: nowrap; color: black;">
-                                    ${customer.name} 
+                                    <span id="customerNameDisplay${customer.id}">${customer.name}</span>
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="editCustomerName(${customer.id})" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
                                     <button type="button" class="btn btn-danger btn-sm" onclick="deleteCustomer(${customer.id})" title="Delete">
                                         <i class="bi bi-trash"></i>
                                     </button>
@@ -271,6 +292,76 @@
                     dashboard.removeChild(customerDiv);
                 }
                 customers = customers.filter(c => c.id !== customerId);
+            }
+
+            function editCustomerName(customerId) {
+                var customer = customers.find(c => c.id === customerId);
+                if (!customer) return;
+                
+                var nameDisplay = document.getElementById(`customerNameDisplay${customerId}`);
+                var currentName = customer.name;
+                
+                // Create input field
+                var input = document.createElement('input');
+                input.type = 'text';
+                input.value = currentName;
+                input.className = 'form-control form-control-sm';
+                input.style = 'display: inline-block; width: auto; margin-right: 5px;';
+                
+                // Create save button
+                var saveBtn = document.createElement('button');
+                saveBtn.type = 'button';
+                saveBtn.className = 'btn btn-success btn-sm';
+                saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+                saveBtn.title = 'Save';
+                saveBtn.onclick = function() {
+                    var newName = input.value.trim();
+                    if (newName) {
+                        customer.name = newName;
+                        nameDisplay.textContent = newName;
+                        nameDisplay.style.display = 'inline';
+                        input.remove();
+                        saveBtn.remove();
+                        cancelBtn.remove();
+                    }
+                };
+                
+                // Create cancel button
+                var cancelBtn = document.createElement('button');
+                cancelBtn.type = 'button';
+                cancelBtn.className = 'btn btn-secondary btn-sm';
+                cancelBtn.innerHTML = '<i class="bi bi-x"></i>';
+                cancelBtn.title = 'Cancel';
+                cancelBtn.onclick = function() {
+                    nameDisplay.style.display = 'inline';
+                    input.remove();
+                    saveBtn.remove();
+                    cancelBtn.remove();
+                };
+                
+                // Replace display with input and buttons
+                nameDisplay.style.display = 'none';
+                nameDisplay.parentNode.insertBefore(input, nameDisplay.nextSibling);
+                nameDisplay.parentNode.insertBefore(saveBtn, input.nextSibling);
+                nameDisplay.parentNode.insertBefore(cancelBtn, saveBtn.nextSibling);
+                
+                // Focus on input and select text
+                input.focus();
+                input.select();
+                
+                // Handle Enter key
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        saveBtn.click();
+                    }
+                });
+                
+                // Handle Escape key
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        cancelBtn.click();
+                    }
+                });
             }
 
             var deletedRows = [];
@@ -375,7 +466,6 @@
             }
 
             function getAdjustPrice(customer, item) {
-                console.log(customer, item);
                 var base = item.price.amount || 0;
                 var adjusted = base;
                 if (base < customer.low) return base;
