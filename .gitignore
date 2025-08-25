@@ -25,6 +25,7 @@ package-lock.json
 *.pem
 
 # local env files
+.env
 .env*.local
 .env*.prod
 

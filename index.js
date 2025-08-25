@@ -8,6 +8,9 @@ const path = require("path");
 const mongoose = require('mongoose');
 const Pedal = require('./model/pedals.mdl');
 const cheerio = require("cheerio");
+const dotenv = require('dotenv');
+dotenv.config();
+
 // Serve dashboard.html at the root URL
 // GraphQL endpoint
 const MONGO_URI = 'mongodb://localhost:27017/prices';
@@ -58,14 +61,25 @@ app.post("/search", async (req, res) => {
 	pedals.forEach((pedal) => {
 		titles.push(pedal.name);
 	});
-	console.log(pedals)
 	Pedal.find({
-		$or: [
-			{ title: { $in: titles } }, // exact match
-			...titles.map(pedal => ({
-				title: { $regex: pedal, $options: "i" } // case-insensitive substring match
-			}))
-		]
+		$where: function() {
+			let flag = false;
+			for (var i = 0; i < pedals.length; i++) {
+				var strArr = pedals[i].name.toLowerCase().split(" ");
+				var similarity = 0;
+				var s = 1 / strArr.length;
+				strArr.forEach((str) => {
+					if (this.title.toLowerCase().includes(str)) {
+						similarity += s;
+					}
+				});
+				if (similarity > 0.5 && this.condition.display_name.toLocaleLowerCase() === pedals[i].condition.toLocaleLowerCase()) {
+					flag = true;
+					break;
+				}
+			}
+			return flag;
+		}
 	})
 		.then((foundPedals) => {
 			if (foundPedals.length > 0) {
@@ -136,7 +150,6 @@ const getProducts = async (brand) => {
 			per_page: 50              // Max 100 per page
 		}
 	})
-	console.log(testResponse.data.total)
 	if (testResponse.data.total == 0) {
 		step--;
 	}
@@ -168,16 +181,25 @@ const getProducts = async (brand) => {
 				const listings = response.data.listings;
 				listings.forEach(item => {
 					const title = item.title;
-					const newPedal = new Pedal({
-						title,
-						brand: brand.name,
-						productId: item.id,
-						price: item.price,
-						condition: item.condition,
-						url: item._links.web.href,
-						photos: item.photos,
-					});
-					newPedal.save();
+					
+					// Use upsert to update existing pedal or create new one
+					Pedal.findOneAndUpdate(
+						{ productId: item.id }, // filter by productId to find existing
+						{
+							title,
+							brand: brand.name,
+							productId: item.id,
+							price: item.price,
+							condition: item.condition,
+							url: item._links.web.href,
+							photos: item.photos,
+						},
+						{ 
+							upsert: true, 
+							new: true, // return the updated/created document
+							setDefaultsOnInsert: true // apply schema defaults on insert
+						}
+					).exec();
 				});
 				if (total > page * 50 || total == 0) {
 					console.log(total - page * 50, page);
@@ -193,35 +215,229 @@ const getProducts = async (brand) => {
 	}
 
 }
+// Process brands in batches to save OpenAI tokens
+async function processBrandsInBatches(brands, batchSize = 25) {
+    const pedalBrands = [];
+    
+    for (let i = 0; i < brands.length; i += batchSize) {
+        const batch = brands.slice(i, i + batchSize);
+        console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(brands.length/batchSize)}`);
+        
+        const batchResults = await analyzeBrandBatch(batch);
+        pedalBrands.push(...batchResults);
+        
+        // Small delay to avoid rate limiting
+        if (i + batchSize < brands.length) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+    }
+    
+    return pedalBrands;
+}
+
+// Analyze a batch of brands in one API call
+async function analyzeBrandBatch(brandsBatch) {
+    try {
+        const brandsList = brandsBatch.map((brand, index) => `${index + 1}. "${brand.name}"`).join('\n');
+        
+        const prompt = `Analyze these ${brandsBatch.length} brands and determine which are focused on guitar pedals/effects.
+
+Brands to analyze:
+${brandsList}
+
+For each brand, determine if it's primarily focused on guitar pedals/effects.
+
+Respond with ONLY a JSON array:
+[
+  {
+    "index": 1,
+    "brandName": "brand name",
+    "isPedalBrand": true/false,
+    "confidence": 0.0-1.0,
+    "reason": "Brief explanation"
+  }
+]
+
+Only mark as pedal brands if they primarily make guitar pedals/effects.`;
+
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                model: "gpt-3.5-turbo",
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are a music equipment expert. Analyze brands and determine which are primarily focused on guitar pedals/effects."
+                    },
+                    {
+                        role: "user",
+                        content: prompt
+                    }
+                ],
+                temperature: 0.1,
+                max_tokens: 800
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.error) {
+            console.error('OpenAI API Error:', data.error);
+            return [];
+        }
+
+        const content = data.choices[0].message.content;
+        
+        try {
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                const results = JSON.parse(jsonMatch[0]);
+                
+                return results
+                    .filter(result => result.isPedalBrand && result.confidence > 0.6)
+                    .map(result => ({
+                        ...brandsBatch[result.index - 1],
+                        confidence: result.confidence,
+                        reason: result.reason
+                    }));
+            }
+        } catch (parseError) {
+            console.error('Failed to parse OpenAI response:', parseError);
+        }
+        
+        return [];
+        
+    } catch (error) {
+        console.error('Batch analysis failed:', error);
+        return [];
+    }
+}
+
 const fetchListings = async (req, res) => {
 	try {
 		let brands = await scrapeBrandsFromWeb();
-		let flag = 0;
-		for (const brand of brands) {
-			// await getProducts(brand);
-			if (brand.name == "Fender") {
-				flag = 1;
-			}
-			if (flag == 1) {
-				await getProducts(brand);
-			}
+		console.log(`Found ${brands.length} brands, processing in batches...`);
+		
+		// Process brands in batches instead of one by one
+		const pedalBrands = await processBrandsInBatches(brands, 25);
+		
+		console.log(`Found ${pedalBrands.length} pedal brands out of ${brands.length} total brands`);
+		
+		// Process only the pedal brands
+		for (const brand of pedalBrands) {
+			await getProducts(brand);
 		}
-		res.json({brands});
+		
+		res.json({
+			totalBrands: brands.length,
+			pedalBrands: pedalBrands.length,
+			brands: pedalBrands
+		});
+		
 	} catch (error) {
 		console.error("Error fetching listings:", error.response?.data || error.message);
+		res.status(500).json({ error: 'Internal server error' });
 	}
 };
-const getCategories = async (listings) => {
-	const res = await fetch('https://api.reverb.com/api/categories/flat', {
-		headers: {
-			'Accept': 'application/hal+json',
-			'Accept-Version': '3.0',
-			'Authorization': `Bearer ${accessToken}`
+
+// Function to check if a brand is specifically for guitar pedals
+async function isGuitarPedalBrand(brandName) {
+    if (!brandName) return false;
+    
+    try {
+        const prompt = `Analyze if the brand "${brandName}" is specifically focused on guitar pedals/effects or if it's a general music equipment brand.
+		Consider:
+		1. Is this brand primarily known for guitar pedals/effects?
+		2. Do they specialize in stompboxes, effects processors, or guitar effects?
+		3. Or are they known for guitars, amps, keyboards, recording equipment, etc.?
+
+		Respond with ONLY a JSON object in this exact format:
+		{
+		"isPedalBrand": true/false,
+		"confidence": 0.0-1.0,
+		"reason": "Brief explanation of why this brand is or isn't pedal-focused"
 		}
-	});
-	const categories = await res.json();
-	return categories;
+
+		Examples:
+		- "Boss" should return: {"isPedalBrand": true, "confidence": 1.0, "reason": "Boss is primarily known for guitar pedals and effects"}
+		- "Fender" should return: {"isPedalBrand": false, "confidence": 0.8, "reason": "Fender is primarily known for guitars and amplifiers, not pedals"}
+		- "Strymon" should return: {"isPedalBrand": true, "confidence": 1.0, "reason": "Strymon specializes in high-end guitar pedals and effects"}`;
+
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                model: "gpt-3.5-turbo",
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are a music equipment expert specializing in guitar pedals and effects. Analyze brands and determine if they are primarily focused on guitar pedals/effects."
+                    },
+                    {
+                        role: "user",
+                        content: prompt
+                    }
+                ],
+                temperature: 0.1,
+                max_tokens: 200
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.error) {
+            console.error('OpenAI API Error:', data.error);
+            // Fallback to basic keyword checking
+            return fallbackBrandCheck(brandName);
+        }
+
+        const content = data.choices[0].message.content;
+        
+        try {
+            // Extract JSON from the response
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const result = JSON.parse(jsonMatch[0]);
+                return result;
+            } else {
+                console.error('No JSON found in OpenAI response:', content);
+                return fallbackBrandCheck(brandName);
+            }
+        } catch (parseError) {
+            console.error('Failed to parse OpenAI response:', parseError);
+            return fallbackBrandCheck(brandName);
+        }
+
+    } catch (error) {
+        console.error('OpenAI API request failed:', error);
+        // Fallback to basic keyword checking
+        return fallbackBrandCheck(brandName);
+    }
 }
+// Fallback function for when OpenAI API fails
+function fallbackBrandCheck(brandName) {
+    if (!brandName) return { isPedalBrand: false, confidence: 0.3, reason: 'No brand name provided' };
+    
+    const normalizedBrand = brandName.toLowerCase().trim();
+    
+    // Basic keyword checking as fallback
+    const pedalKeywords = ['pedal', 'effect', 'fx', 'stompbox', 'stomp'];
+    const hasPedalKeywords = pedalKeywords.some(keyword => normalizedBrand.includes(keyword));
+    
+    if (hasPedalKeywords) {
+        return { isPedalBrand: true, confidence: 0.6, reason: 'Brand name contains pedal-related keywords (fallback)' };
+    }
+    
+    return { isPedalBrand: false, confidence: 0.3, reason: 'Unknown brand, no pedal indicators found (fallback)' };
+}
+
 
 // fetchListings()
 // Function to fetch all brands from Reverb (all pages, not an API endpoint)
@@ -323,3 +539,41 @@ const getCategories = async (listings) => {
 app.listen(PORT, () => {
 	console.log(`Server running on port ${PORT}`);
 });
+
+// Price Guide Transaction Table endpoint
+async function getPriceGuide(productId) {
+	try {
+		const payload = {
+			operationName: "Search_PriceGuideTool_TransactionTable",
+			variables: {
+				canonicalProductIds: [
+					"877"
+				],
+				conditionSlugs: [
+					"mint",
+					"excellent",
+					"very-good",
+					"good"
+				],
+				sellerCountries: [
+					"US"
+				],
+				actionableStatuses: [
+					"shipped",
+					"picked_up",
+					"received"
+				],
+				limit: 10,
+				offset: 0
+			},
+			query: "query Search_PriceGuideTool_TransactionTable($canonicalProductIds: [String], $sellerCountries: [String], $conditionSlugs: [String], $createdAfterDate: String, $actionableStatuses: [String], $limit: Int, $offset: Int) {\n  priceRecordsSearch(\n    input: {canonicalProductIds: $canonicalProductIds, sellerCountries: $sellerCountries, listingConditionSlugs: $conditionSlugs, createdAfterDate: $createdAfterDate, actionableStatuses: $actionableStatuses, limit: $limit, offset: $offset}\n  ) {\n    priceRecords {\n      _id\n      ...TransactionTablePriceRecordsData\n      __typename\n    }\n    total\n    offset\n    __typename\n  }\n}\n\nfragment TransactionTablePriceRecordsData on PublicPriceRecord {\n  _id\n  condition {\n    displayName\n    __typename\n  }\n  createdAt {\n    seconds\n    __typename\n  }\n  amountProduct {\n    display\n    __typename\n  }\n  listingId\n  __typename\n}"
+		};
+
+		const response = await axios.post('https://gql.reverb.com/graphql', payload);
+		
+		console.log('Price Guide Response:', response.data.data.priceRecordsSearch.priceRecords.length);
+		
+	} catch (error) {
+		console.error('Price Guide API Error:', error.response?.data || error.message);
+	}
+}
