@@ -237,7 +237,7 @@ const getProducts = async (brand) => {
 
 }
 // Process brands in batches to save OpenAI tokens
-async function processBrandsInBatches(brands, batchSize = 25) {
+async function processBrandsInBatches(brands, batchSize = 10) {
     const pedalBrands = [];
     
     for (let i = 0; i < brands.length; i += batchSize) {
@@ -260,7 +260,6 @@ async function processBrandsInBatches(brands, batchSize = 25) {
 async function analyzeBrandBatch(brandsBatch) {
     try {
         const brandsList = brandsBatch.map((brand, index) => `${index + 1}. "${brand.name}"`).join('\n');
-        
         const prompt = `Analyze these ${brandsBatch.length} brands and determine which are focused on guitar pedals/effects.
 
 Brands to analyze:
@@ -317,7 +316,6 @@ Only mark as pedal brands if they primarily make guitar pedals/effects.`;
             const jsonMatch = content.match(/\[[\s\S]*\]/);
             if (jsonMatch) {
                 const results = JSON.parse(jsonMatch[0]);
-                
                 return results
                     .filter(result => result.isPedalBrand && result.confidence > 0.6)
                     .map(result => ({
@@ -330,6 +328,7 @@ Only mark as pedal brands if they primarily make guitar pedals/effects.`;
             console.error('Failed to parse OpenAI response:', parseError);
         }
         
+        console.log('Returning empty array due to parsing failure');
         return [];
         
     } catch (error) {
@@ -344,7 +343,7 @@ const fetchListings = async (req, res) => {
 		console.log(`Found ${brands.length} brands, processing in batches...`);
 		
 		// Process brands in batches instead of one by one
-		const pedalBrands = await processBrandsInBatches(brands, 25);
+		const pedalBrands = await processBrandsInBatches(brands, 10);
 		
 		console.log(`Found ${pedalBrands.length} pedal brands out of ${brands.length} total brands`);
 		
