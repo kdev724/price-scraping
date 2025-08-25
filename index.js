@@ -9,8 +9,29 @@ const mongoose = require('mongoose');
 const Pedal = require('./model/pedals.mdl');
 const cheerio = require("cheerio");
 const dotenv = require('dotenv');
-dotenv.config();
+const fs = require('fs');
 
+// Debug what's happening
+console.log('=== DEBUGGING ENV LOADING ===');
+console.log('Current directory:', process.cwd());
+console.log('Looking for .env at:', require('path').resolve('.env'));
+console.log('File exists:', require('fs').existsSync('.env'));
+
+// Read the actual file content
+const envContent = fs.readFileSync('.env', 'utf8');
+console.log('Raw .env file content:');
+console.log('Length:', envContent.length);
+console.log('Content:', JSON.stringify(envContent));
+console.log('Lines:', envContent.split('\n').length);
+
+// Try to load .env
+const result = dotenv.config();
+console.log('Dotenv result:', result);
+
+// Check if it loaded anything
+console.log('All env vars with OPENAI:', Object.keys(process.env).filter(key => key.includes('OPENAI')));
+console.log('OPENAI_API_KEY value:', process.env.OPENAI_API_KEY);
+console.log('=== END DEBUG ===');
 // Serve dashboard.html at the root URL
 // GraphQL endpoint
 const MONGO_URI = 'mongodb://localhost:27017/prices';
