@@ -64,7 +64,7 @@ app.get("/", (req, res) => {
 });
 // New /search endpoint for Reverb Combined Marketplace Search
 app.post("/initial", async (req, res) => {
-	Pedal.deleteMany({brand: "Yamaha"}).then(() => {
+	Pedal.deleteMany({}).then(() => {
 		fetchListings(req, res);
 	});
 })	
