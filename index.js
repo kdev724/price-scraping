@@ -34,19 +34,166 @@ console.log('OPENAI_API_KEY value:', process.env.OPENAI_API_KEY);
 console.log('=== END DEBUG ===');
 // Serve dashboard.html at the root URL
 // GraphQL endpoint
-const MONGO_URI = 'mongodb://localhost:27017/prices';
+// Try 127.0.0.1 first, fallback to localhost
+const MONGO_URI = 'mongodb://127.0.0.1:27017/prices';
+const MONGO_URI_FALLBACK = 'mongodb://localhost:27017/prices';
 
-mongoose.connect(MONGO_URI, {
-	useNewUrlParser: true,
-	useUnifiedTopology: true,
-});
+// Improved MongoDB connection with proper error handling and retry logic
+async function connectWithRetry() {
+	const maxRetries = 5;
+	let retries = 0;
+	
+	while (retries < maxRetries) {
+		try {
+			// Try primary connection string first
+			await mongoose.connect(MONGO_URI, {
+				// Remove deprecated options for Mongoose 8.x
+				serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+				socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+				connectTimeoutMS: 10000, // Give up initial connection after 10s
+				maxPoolSize: 10, // Maintain up to 10 socket connections
+				minPoolSize: 2, // Maintain at least 2 socket connections
+				maxIdleTimeMS: 30000, // Close idle connections after 30s
+				retryWrites: true,
+				w: 'majority',
+				// Additional options to help with connection stability
+				heartbeatFrequencyMS: 10000,
+				serverApi: {
+					version: '1',
+					strict: false,
+					deprecationErrors: false
+				}
+			});
+			console.log('✅ MongoDB connected successfully using primary URI');
+			break;
+		} catch (error) {
+			console.error(`❌ Primary connection failed:`, error.message);
+			
+			// Try fallback connection string
+			try {
+				console.log('🔄 Trying fallback connection string...');
+				await mongoose.connect(MONGO_URI_FALLBACK, {
+					serverSelectionTimeoutMS: 5000,
+					socketTimeoutMS: 45000,
+					connectTimeoutMS: 10000,
+					maxPoolSize: 10,
+					minPoolSize: 2,
+					maxIdleTimeMS: 30000,
+					retryWrites: true,
+					w: 'majority',
+					heartbeatFrequencyMS: 10000,
+					serverApi: {
+						version: '1',
+						strict: false,
+						deprecationErrors: false
+					}
+				});
+				console.log('✅ MongoDB connected successfully using fallback URI');
+				break;
+			} catch (fallbackError) {
+				retries++;
+				console.error(`❌ MongoDB connection attempt ${retries} failed:`, fallbackError.message);
+				
+				if (retries < maxRetries) {
+					console.log(`🔄 Retrying in 5 seconds... (${retries}/${maxRetries})`);
+					await new Promise(resolve => setTimeout(resolve, 5000));
+				} else {
+					console.error('❌ Failed to connect to MongoDB after all retries');
+					console.error('💡 Please check:');
+					console.error('   1. Is MongoDB running? (mongod)');
+					console.error('   2. Is it listening on port 27017?');
+					console.error('   3. Are there any firewall issues?');
+					process.exit(1);
+				}
+			}
+		}
+	}
+}
+
+// Start connection with retry
+connectWithRetry();
+
+// Wait for database connection before starting server
+async function startServer() {
+    try {
+        // Wait for MongoDB to be ready
+        while (mongoose.connection.readyState !== 1) {
+            console.log('⏳ Waiting for MongoDB connection...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        console.log('🚀 Starting Express server...');
+        app.listen(PORT, () => {
+            console.log(`✅ Server running on port ${PORT}`);
+        });
+        
+    } catch (error) {
+        console.error('❌ Failed to start server:', error);
+        process.exit(1);
+    }
+}
+
+// Start server after database connection
+startServer();
 
 mongoose.connection.on('connected', () => {
-	console.log('MongoDB connected');
+	console.log('✅ MongoDB connected successfully');
 });
 
 mongoose.connection.on('error', (err) => {
-	console.error('MongoDB connection error:', err);
+	console.error('❌ MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+	console.log('⚠️ MongoDB disconnected');
+});
+
+mongoose.connection.on('reconnected', () => {
+	console.log('🔄 MongoDB reconnected');
+});
+
+// Auto-reconnect on disconnection
+mongoose.connection.on('disconnected', () => {
+	console.log('⚠️ MongoDB disconnected, attempting to reconnect...');
+	setTimeout(() => {
+		if (mongoose.connection.readyState === 0) {
+			console.log('🔄 Attempting to reconnect to MongoDB...');
+			connectWithRetry();
+		}
+	}, 5000);
+});
+
+// Periodic connection health check
+setInterval(() => {
+    const readyState = mongoose.connection.readyState;
+    const statusMap = {
+        0: 'disconnected',
+        1: 'connected',
+        2: 'connecting',
+        3: 'disconnecting'
+    };
+    
+    if (readyState !== 1) {
+        console.log(`⚠️ Database health check: ${statusMap[readyState]} (${readyState})`);
+        
+        // Try to reconnect if disconnected
+        if (readyState === 0) {
+            console.log('🔄 Health check triggered reconnection attempt...');
+            connectWithRetry();
+        }
+    }
+}, 30000); // Check every 30 seconds
+
+// Handle process termination
+process.on('SIGINT', async () => {
+	try {
+		await mongoose.connection.close();
+		console.log('MongoDB connection closed through app termination');
+		process.exit(0);
+	} catch (err) {
+		console.error('Error closing MongoDB connection:', err);
+		process.exit(1);
+	}
 });
 
 
@@ -62,74 +209,102 @@ console.log(path.join(__dirname, "public"));
 app.get("/", (req, res) => {
 	res.sendFile(path.join(__dirname, "public", "dashboard.html"));
 });
+
 // New /search endpoint for Reverb Combined Marketplace Search
 app.post("/initial", async (req, res) => {
-	Pedal.deleteMany({}).then(() => {
-		fetchListings(req, res);
-	});
+	try {
+		// Check if MongoDB is connected before proceeding
+		if (mongoose.connection.readyState !== 1) {
+			return res.status(500).json({ error: 'Database not connected. Please try again.' });
+		}
+		
+		// Use proper async/await with error handling
+		await Pedal.deleteMany({});
+		console.log('✅ Database cleared successfully');
+		
+		// Now fetch listings
+		await fetchListings(req, res);
+	} catch (error) {
+		console.error('❌ Error in /initial endpoint:', error);
+		res.status(500).json({ error: 'Failed to clear database or fetch listings' });
+	}
 })	
 
 app.post("/search", async (req, res) => {
-	let pedals = [];
-	if (req.body && Array.isArray(req.body.pedals)) {
-		pedals = req.body.pedals;
-	} else if (req.body && typeof req.body.pedals === "string") {
-		try {
-			pedals = JSON.parse(req.body.pedals);
-		} catch { }
-	}
-	var titles = [];
-	pedals.forEach((pedal) => {
-		titles.push(pedal.name);
-	});
-	Pedal.find({
-		$where: function() {
-			let flag = false;
-			for (var i = 0; i < pedals.length; i++) {
-				var strArr = pedals[i].name.toLowerCase().split(" ");
-				var similarity = 0;
-				var s = 1 / strArr.length;
-				strArr.forEach((str) => {
-					if (this.title.toLowerCase().includes(str)) {
-						similarity += s;
-					}
-				});
-				if (similarity > 0.5 && this.condition.display_name.toLocaleLowerCase() === pedals[i].condition.toLocaleLowerCase()) {
-					flag = true;
-					break;
-				}
-			}
-			return flag;
+	try {
+		// Check if MongoDB is connected before proceeding
+		if (mongoose.connection.readyState !== 1) {
+			return res.status(503).json({ error: 'Database not connected. Please try again.' });
 		}
-	})
-		.then((foundPedals) => {
-			if (foundPedals.length > 0) {
-				var products = []
-				foundPedals.forEach((item, i) => {
-					var pedal = pedals.find(p => item.title.toLowerCase().includes(p.name.toLowerCase()));
-					if (!pedal) return;
-					if (item.condition.display_name.toLocaleLowerCase() === pedal.condition.toLocaleLowerCase()) {
-						products.push({
-							id: i + 1,
-							title: item.title,
-							brand: item.brand,
-							productId: item.productId,
-							price: item.price,
-							condition: item.condition,
-							url: item.url,
-							photos: item.photos
-						});
-					}
-				});
-				return res.json({ products });
-			} else {
-				return res.status(404).json({ error: "No pedals found" });
+		
+		let pedals = [];
+		if (req.body && Array.isArray(req.body.pedals)) {
+			pedals = req.body.pedals;
+		} else if (req.body && typeof req.body.pedals === "string") {
+			try {
+				pedals = JSON.parse(req.body.pedals);
+			} catch (parseError) {
+				console.error('Failed to parse pedals:', parseError);
+				return res.status(400).json({ error: 'Invalid pedals format' });
 			}
-		})
-		.catch((err) => {
-			console.error("Error fetching pedals:", err);
-			return res.status(500).json({ error: "Internal server error" });
+		}
+		
+		if (!pedals || pedals.length === 0) {
+			return res.status(400).json({ error: 'No pedals provided' });
+		}
+		
+		var titles = [];
+		pedals.forEach((pedal) => {
+			titles.push(pedal.name);
 		});
+		
+		const foundPedals = await Pedal.find({
+			$where: function() {
+				let flag = false;
+				for (var i = 0; i < pedals.length; i++) {
+					var strArr = pedals[i].name.toLowerCase().split(" ");
+					var similarity = 0;
+					var s = 1 / strArr.length;
+					strArr.forEach((str) => {
+						if (this.title.toLowerCase().includes(str)) {
+							similarity += s;
+						}
+					});
+					if (similarity > 0.5 && this.condition.display_name.toLocaleLowerCase() === pedals[i].condition.toLocaleLowerCase()) {
+						flag = true;
+						break;
+					}
+				}
+				return flag;
+			}
+		});
+		
+		if (foundPedals.length > 0) {
+			var products = []
+			foundPedals.forEach((item, i) => {
+				var pedal = pedals.find(p => item.title.toLowerCase().includes(p.name.toLowerCase()));
+				if (!pedal) return;
+				if (item.condition.display_name.toLocaleLowerCase() === pedal.condition.toLocaleLowerCase()) {
+					products.push({
+						id: i + 1,
+						title: item.title,
+						brand: item.brand,
+						productId: item.productId,
+						price: item.price,
+						condition: item.condition,
+						url: item.url,
+						photos: item.photos
+					});
+				}
+			});
+			return res.json({ products });
+		} else {
+			return res.status(404).json({ error: "No pedals found" });
+		}
+	} catch (err) {
+		console.error("❌ Error fetching pedals:", err);
+		return res.status(500).json({ error: "Internal server error" });
+	}
 });
 
 const puppeteer = require('puppeteer-extra');
@@ -200,28 +375,54 @@ const getProducts = async (brand) => {
 				})
 				var total = response.data.total
 				const listings = response.data.listings;
-				listings.forEach(item => {
-					const title = item.title;
+				// Process listings in batches to avoid overwhelming the database
+				const batchSize = 10;
+				for (let i = 0; i < listings.length; i += batchSize) {
+					const batch = listings.slice(i, i + batchSize);
 					
-					// Use upsert to update existing pedal or create new one
-					Pedal.findOneAndUpdate(
-						{ productId: item.id }, // filter by productId to find existing
-						{
-							title,
-							brand: brand.name,
-							productId: item.id,
-							price: item.price,
-							condition: item.condition,
-							url: item._links.web.href,
-							photos: item.photos,
-						},
-						{ 
-							upsert: true, 
-							new: true, // return the updated/created document
-							setDefaultsOnInsert: true // apply schema defaults on insert
+					try {
+						// Check connection before each batch
+						if (mongoose.connection.readyState !== 1) {
+							console.log('⚠️ Database disconnected, skipping batch');
+							continue;
 						}
-					).exec();
-				});
+						
+						// Process batch with Promise.all for better performance
+						await Promise.all(batch.map(async (item) => {
+							const title = item.title;
+							
+							try {
+								// Use upsert to update existing pedal or create new one
+								await Pedal.findOneAndUpdate(
+									{ productId: item.id }, // filter by productId to find existing
+									{
+										title,
+										brand: brand.name,
+										productId: item.id,
+										price: item.price,
+										condition: item.condition,
+										url: item._links.web.href,
+										photos: item.photos,
+									},
+									{ 
+										upsert: true, 
+										new: true, // return the updated/created document
+										setDefaultsOnInsert: true // apply schema defaults on insert
+									}
+								);
+							} catch (dbError) {
+								console.error(`❌ Database error for item ${item.id}:`, dbError.message);
+							}
+						}));
+						
+						// Small delay between batches to prevent overwhelming the database
+						if (i + batchSize < listings.length) {
+							await new Promise(resolve => setTimeout(resolve, 100));
+						}
+					} catch (batchError) {
+						console.error(`❌ Batch processing error:`, batchError.message);
+					}
+				}
 				if (total > page * 50 || total == 0) {
 					console.log(total - page * 50, page);
 					page++;
@@ -556,9 +757,7 @@ function fallbackBrandCheck(brandName) {
 // };
 // fetchListings();
 
-app.listen(PORT, () => {
-	console.log(`Server running on port ${PORT}`);
-});
+// Server startup is now handled by startServer() function
 
 // Price Guide Transaction Table endpoint
 async function getPriceGuide(productId) {
