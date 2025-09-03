@@ -547,6 +547,7 @@ async function processExistingPedalsInBatches(batchSize = 10) {
     try {
         console.log('🔍 Starting verification of existing pedals...');
         
+		let deleteIds = []
         let skip = 0;
         let batchNumber = 1;
         let totalProcessed = 0;
@@ -580,10 +581,8 @@ async function processExistingPedalsInBatches(batchSize = 10) {
                 });
                 
                 // Remove invalid pedals from database immediately
-                const invalidIds = invalidPedals.map(pedal => pedal._id);
-                const deleteResult = await Pedal.deleteMany({ _id: { $in: invalidIds } });
-                totalRemoved += deleteResult.deletedCount;
-                console.log(`🗑️ Removed ${deleteResult.deletedCount} invalid pedals from database`);
+                invalidPedals.map(pedal => deleteIds.push(pedal._id));
+                
             } else {
                 console.log(`✅ All pedals in this batch are valid guitar pedals`);
             }
@@ -596,6 +595,9 @@ async function processExistingPedalsInBatches(batchSize = 10) {
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
+		const deleteResult = await Pedal.deleteMany({ _id: { $in: deleteIds } });
+		totalRemoved += deleteResult.deletedCount;
+		console.log(`🗑️ Removed ${deleteResult.deletedCount} invalid pedals from database`);
         console.log(`🎉 Processing complete! Total processed: ${totalProcessed}, Total removed: ${totalRemoved}`);
         
     } catch (error) {
