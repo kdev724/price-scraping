@@ -219,7 +219,10 @@ app.post("/initial", async (req, res) => {
 		}
 		
 		// Use proper async/await with error handling
-		await Pedal.deleteMany({});
+		// await Pedal.deleteMany({});
+
+		// Process existing pedals in batches to verify they are actually guitar pedals
+		await processExistingPedalsInBatches();
 		console.log('✅ Database cleared successfully');
 		
 		// Now fetch listings
@@ -517,6 +520,7 @@ Only mark as pedal brands if they primarily make guitar pedals/effects.`;
             const jsonMatch = content.match(/\[[\s\S]*\]/);
             if (jsonMatch) {
                 const results = JSON.parse(jsonMatch[0]);
+				console.log(results)
                 return results
                     .filter(result => result.isPedalBrand && result.confidence > 0.6)
                     .map(result => ({
@@ -534,6 +538,149 @@ Only mark as pedal brands if they primarily make guitar pedals/effects.`;
         
     } catch (error) {
         console.error('Batch analysis failed:', error);
+        return [];
+    }
+}
+
+// Process existing pedals in batches to verify they are actually guitar pedals
+async function processExistingPedalsInBatches(batchSize = 10) {
+    try {
+        console.log('🔍 Starting verification of existing pedals...');
+        
+        // Get all pedals from database
+        const allPedals = await Pedal.find({}).exec();
+        console.log(`Found ${allPedals.length} pedals to verify`);
+        
+        if (allPedals.length === 0) {
+            console.log('No pedals found in database');
+            return;
+        }
+        
+        const pedalsToRemove = [];
+        
+        // Process in batches
+        for (let i = 0; i < allPedals.length; i += batchSize) {
+            const batch = allPedals.slice(i, i + batchSize);
+            console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allPedals.length/batchSize)}`);
+            
+            // Prepare batch for analysis
+            const batchForAnalysis = batch.map(pedal => ({ name: pedal.title }));
+            
+            // Analyze the batch
+            const analysisResults = await analyzePedalBatch(batchForAnalysis);
+            
+            // Find pedals that were NOT identified as actual guitar pedals
+            const validPedalNames = analysisResults.map(result => result.name);
+            const invalidPedals = batch.filter(pedal => !validPedalNames.includes(pedal.title));
+            
+            if (invalidPedals.length > 0) {
+                console.log(`❌ Found ${invalidPedals.length} invalid pedals in this batch:`);
+                invalidPedals.forEach(pedal => {
+                    console.log(`  - ${pedal.title}`);
+                    pedalsToRemove.push(pedal._id);
+                });
+            } else {
+                console.log(`✅ All pedals in this batch are valid guitar pedals`);
+            }
+            
+            // Small delay to avoid rate limiting
+            if (i + batchSize < allPedals.length) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+        
+        // Remove invalid pedals from database
+        if (pedalsToRemove.length > 0) {
+            console.log(`🗑️ Removing ${pedalsToRemove.length} invalid pedals from database...`);
+            const deleteResult = await Pedal.deleteMany({ _id: { $in: pedalsToRemove } });
+            console.log(`✅ Removed ${deleteResult.deletedCount} invalid pedals`);
+        } else {
+            console.log('✅ All pedals are valid guitar pedals - no removal needed');
+        }
+        
+    } catch (error) {
+        console.error('Error processing existing pedals:', error);
+    }
+}
+
+// Analyze a batch of pedal names in one API call
+async function analyzePedalBatch(pedalsBatch) {
+    try {
+        const pedalsList = pedalsBatch.map((pedal, index) => `${index + 1}. "${pedal.name}"`).join('\n');
+        const prompt = `Analyze these ${pedalsBatch.length} product names and determine which are guitar pedals/effects.
+
+Products to analyze:
+${pedalsList}
+
+For each product, determine if it's a guitar pedal/effect unit.
+
+Respond with ONLY a JSON array:
+[
+  {
+    "index": 1,
+    "productName": "product name",
+    "isPedal": true/false,
+    "confidence": 0.0-1.0,
+    "reason": "Brief explanation"
+  }
+]
+
+Only mark as pedals if they are guitar pedals/effects units. Include distortion, overdrive, delay, reverb, modulation, EQ, compressor, and other guitar effects pedals.`;
+
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                model: "gpt-3.5-turbo",
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are a music equipment expert. Analyze product names and determine which are guitar pedals/effects units."
+                    },
+                    {
+                        role: "user",
+                        content: prompt
+                    }
+                ],
+                temperature: 0.1,
+                max_tokens: 800
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.error) {
+            console.error('OpenAI API Error:', data.error);
+            return [];
+        }
+
+        const content = data.choices[0].message.content;
+        
+        try {
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                const results = JSON.parse(jsonMatch[0]);
+                console.log(results);
+                return results
+                    .filter(result => result.isPedal && result.confidence > 0.6)
+                    .map(result => ({
+                        ...pedalsBatch[result.index - 1],
+                        confidence: result.confidence,
+                        reason: result.reason
+                    }));
+            }
+        } catch (parseError) {
+            console.error('Failed to parse OpenAI response:', parseError);
+        }
+        
+        console.log('Returning empty array due to parsing failure');
+        return [];
+        
+    } catch (error) {
+        console.error('Pedal batch analysis failed:', error);
         return [];
     }
 }
@@ -564,7 +711,7 @@ const fetchListings = async (req, res) => {
 		res.status(500).json({ error: 'Internal server error' });
 	}
 };
-
+isGuitarPedalBrand('1010 Music Bluebox Eurorack 2024 - Black or Blue')
 // Function to check if a brand is specifically for guitar pedals
 async function isGuitarPedalBrand(brandName) {
     if (!brandName) return false;
@@ -620,7 +767,7 @@ async function isGuitarPedalBrand(brandName) {
         }
 
         const content = data.choices[0].message.content;
-        
+        console.log(content)
         try {
             // Extract JSON from the response
             const jsonMatch = content.match(/\{[\s\S]*\}/);
