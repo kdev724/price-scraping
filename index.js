@@ -547,21 +547,21 @@ async function processExistingPedalsInBatches(batchSize = 10) {
     try {
         console.log('🔍 Starting verification of existing pedals...');
         
-        // Get all pedals from database
-        const allPedals = await Pedal.find({}).exec();
-        console.log(`Found ${allPedals.length} pedals to verify`);
+        let skip = 0;
+        let batchNumber = 1;
+        let totalProcessed = 0;
+        let totalRemoved = 0;
         
-        if (allPedals.length === 0) {
-            console.log('No pedals found in database');
-            return;
-        }
-        
-        const pedalsToRemove = [];
-        
-        // Process in batches
-        for (let i = 0; i < allPedals.length; i += batchSize) {
-            const batch = allPedals.slice(i, i + batchSize);
-            console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allPedals.length/batchSize)}`);
+        while (true) {
+            // Fetch only 10 pedals at a time from MongoDB
+            const batch = await Pedal.find({}).skip(skip).limit(batchSize).exec();
+            
+            if (batch.length === 0) {
+                console.log('✅ No more pedals to process');
+                break;
+            }
+            
+            console.log(`Processing batch ${batchNumber} (${batch.length} pedals)...`);
             
             // Prepare batch for analysis
             const batchForAnalysis = batch.map(pedal => ({ name: pedal.title }));
@@ -577,26 +577,26 @@ async function processExistingPedalsInBatches(batchSize = 10) {
                 console.log(`❌ Found ${invalidPedals.length} invalid pedals in this batch:`);
                 invalidPedals.forEach(pedal => {
                     console.log(`  - ${pedal.title}`);
-                    pedalsToRemove.push(pedal._id);
                 });
+                
+                // Remove invalid pedals from database immediately
+                const invalidIds = invalidPedals.map(pedal => pedal._id);
+                const deleteResult = await Pedal.deleteMany({ _id: { $in: invalidIds } });
+                totalRemoved += deleteResult.deletedCount;
+                console.log(`🗑️ Removed ${deleteResult.deletedCount} invalid pedals from database`);
             } else {
                 console.log(`✅ All pedals in this batch are valid guitar pedals`);
             }
             
+            totalProcessed += batch.length;
+            skip += batchSize;
+            batchNumber++;
+            
             // Small delay to avoid rate limiting
-            if (i + batchSize < allPedals.length) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
-        // Remove invalid pedals from database
-        if (pedalsToRemove.length > 0) {
-            console.log(`🗑️ Removing ${pedalsToRemove.length} invalid pedals from database...`);
-            const deleteResult = await Pedal.deleteMany({ _id: { $in: pedalsToRemove } });
-            console.log(`✅ Removed ${deleteResult.deletedCount} invalid pedals`);
-        } else {
-            console.log('✅ All pedals are valid guitar pedals - no removal needed');
-        }
+        console.log(`🎉 Processing complete! Total processed: ${totalProcessed}, Total removed: ${totalRemoved}`);
         
     } catch (error) {
         console.error('Error processing existing pedals:', error);
