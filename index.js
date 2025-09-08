@@ -226,7 +226,7 @@ app.post("/initial", async (req, res) => {
 		console.log('✅ Database cleared successfully');
 		
 		// Now fetch listings
-		await fetchListings(req, res);
+		// await fetchListings(req, res);
 	} catch (error) {
 		console.error('❌ Error in /initial endpoint:', error);
 		res.status(500).json({ error: 'Failed to clear database or fetch listings' });
