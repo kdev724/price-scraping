@@ -713,7 +713,7 @@ const fetchListings = async (req, res) => {
 		res.status(500).json({ error: 'Internal server error' });
 	}
 };
-isGuitarPedalBrand('1010 Music Bluebox Eurorack 2024 - Black or Blue')
+isGuitarPedalBrand('29 Pedals Toki Fuzzy Driver 2024')
 // Function to check if a brand is specifically for guitar pedals
 async function isGuitarPedalBrand(brandName) {
     if (!brandName) return false;
