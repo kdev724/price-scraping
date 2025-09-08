@@ -543,7 +543,7 @@ Only mark as pedal brands if they primarily make guitar pedals/effects.`;
 }
 
 // Process existing pedals in batches to verify they are actually guitar pedals
-async function processExistingPedalsInBatches(batchSize = 10) {
+async function processExistingPedalsInBatches(batchSize = 20) {
     try {
         console.log('🔍 Starting verification of existing pedals...');
         
