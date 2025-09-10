@@ -161,7 +161,7 @@
                         const data = new Uint8Array(event.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
                         if (workbook.SheetNames.length === 1) {
-                            var sheet = workbook.Sheets[workbook.SheetNames[0]];
+                            var sheet = workbook.Sheets[workbook.SheetNames[0]];    
                             var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
                             var docs = JSON.parse(JSON.stringify(rows, null, 2))
                             console.log(docs);

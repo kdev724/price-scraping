@@ -547,7 +547,6 @@ async function processExistingPedalsInBatches(batchSize = 10) {
     try {
         console.log('🔍 Starting verification of existing pedals...');
         
-		let deleteIds = []
         let skip = 0;
         let batchNumber = 1;
         let totalProcessed = 0;
@@ -556,7 +555,7 @@ async function processExistingPedalsInBatches(batchSize = 10) {
         while (true) {
             // Fetch only 10 pedals at a time from MongoDB
             const batch = await Pedal.find({}).skip(skip).limit(batchSize).exec();
-            
+			let deleteIds = [];
             if (batch.length === 0) {
                 console.log('✅ No more pedals to process');
                 break;
@@ -586,18 +585,18 @@ async function processExistingPedalsInBatches(batchSize = 10) {
             } else {
                 console.log(`✅ All pedals in this batch are valid guitar pedals`);
             }
-            
+			const deleteResult = await Pedal.deleteMany({ _id: { $in: deleteIds } });   
+			totalRemoved += deleteResult.deletedCount;
+			console.log(`🗑️ Removed ${deleteResult.deletedCount} invalid pedals from database`);         
             totalProcessed += batch.length;
-            skip += batchSize;
+            skip += batchSize - deleteResult.deletedCount;
             batchNumber++;
             
             // Small delay to avoid rate limiting
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
-		const deleteResult = await Pedal.deleteMany({ _id: { $in: deleteIds } });
-		totalRemoved += deleteResult.deletedCount;
-		console.log(`🗑️ Removed ${deleteResult.deletedCount} invalid pedals from database`);
+		
         console.log(`🎉 Processing complete! Total processed: ${totalProcessed}, Total removed: ${totalRemoved}`);
         
     } catch (error) {
