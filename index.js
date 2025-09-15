@@ -261,25 +261,49 @@ app.post("/search", async (req, res) => {
 			titles.push(pedal.name);
 		});
 		
-		const foundPedals = await Pedal.find({
-			$where: function() {
-				let flag = false;
-				for (var i = 0; i < pedals.length; i++) {
-					var strArr = pedals[i].name.toLowerCase().split(" ");
-					var similarity = 0;
-					var s = 1 / strArr.length;
-					strArr.forEach((str) => {
-						if (this.title.toLowerCase().includes(str)) {
-							similarity += s;
+		// Build search conditions for each pedal
+		const searchConditions = pedals.map(pedal => {
+			const nameWords = pedal.name.toLowerCase().split(" ");
+			return {
+				$and: [
+					{
+						$expr: {
+							$gte: [
+								{
+									$divide: [
+										{
+											$size: {
+												$filter: {
+													input: nameWords,
+													as: "word",
+													cond: {
+														$regexMatch: {
+															input: { $toLower: "$title" },
+															regex: "$$word",
+															options: "i"
+														}
+													}
+												}
+											}
+										},
+										nameWords.length
+									]
+								},
+								0.5
+							]
 						}
-					});
-					if (similarity > 0.5 && this.condition.display_name.toLocaleLowerCase() === pedals[i].condition.toLocaleLowerCase()) {
-						flag = true;
-						break;
+					},
+					{
+						"condition.display_name": {
+							$regex: new RegExp(`^${pedal.condition}$`, "i")
+						}
 					}
-				}
-				return flag;
-			}
+				]
+			};
+		});
+
+		const foundPedals = await Pedal.find({
+			$or: searchConditions
 		});
 		
 		if (foundPedals.length > 0) {
