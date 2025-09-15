@@ -261,71 +261,47 @@ app.post("/search", async (req, res) => {
 			titles.push(pedal.name);
 		});
 		
-		// Build search conditions for each pedal
-		const searchConditions = pedals.map(pedal => {
-			const nameWords = pedal.name.toLowerCase().split(" ");
-			// Escape special regex characters in each word
-			const escapedWords = nameWords.map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-			
-			return {
-				$and: [
-					{
-						$expr: {
-							$gte: [
-								{
-									$divide: [
-										{
-											$size: {
-												$filter: {
-													input: escapedWords,
-													as: "word",
-													cond: {
-														$regexMatch: {
-															input: { $toLower: "$title" },
-															regex: "$$word",
-															options: "i"
-														}
-													}
-												}
-											}
-										},
-										escapedWords.length
-									]
-								},
-								0.5
-							]
-						}
-					},
-					{
-						"condition.display_name": {
-							$regex: new RegExp(`^${pedal.condition.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i")
-						}
-					}
-				]
-			};
-		});
-
+		// Use $where with proper variable scoping by embedding the data
 		const foundPedals = await Pedal.find({
-			$or: searchConditions
+			$where: function() {
+				// Embed the pedals data directly in the query
+				const searchPedals = JSON.parse('{{PEDALS_DATA}}');
+				let flag = false;
+
+				for (var i = 0; i < searchPedals.length; i++) {
+					var strArr = searchPedals[i].name.toLowerCase().split(" ");
+					var similarity = 0;
+					var s = 1 / strArr.length;
+					
+					strArr.forEach((str) => {
+						if (this.title.toLowerCase().includes(str)) {
+							similarity += s;
+						}
+					});
+					
+					if (similarity > 0.5 && this.condition.display_name.toLowerCase() === searchPedals[i].condition.toLowerCase()) {
+						flag = true;
+						break;
+					}
+				}
+				return flag;
+			}.toString().replace('{{PEDALS_DATA}}', JSON.stringify(pedals))
 		});
 		
+		console.log(foundPedals)
 		if (foundPedals.length > 0) {
 			var products = []
 			foundPedals.forEach((item, i) => {
-				var pedal = pedals.find(p => item.title.toLowerCase().includes(p.name.toLowerCase()));
-				if (!pedal) return;
-				if (item.condition.display_name.toLocaleLowerCase() === pedal.condition.toLocaleLowerCase()) {
-					products.push({
-						id: i + 1,
-						title: item.title,
-						brand: item.brand,
-						productId: item.productId,
-						price: item.price,
-						condition: item.condition,
-						url: item.url,
-						photos: item.photos
-					});
-				}
+				products.push({
+					id: i + 1,
+					title: item.title,
+					brand: item.brand,
+					productId: item.productId,
+					price: item.price,
+					condition: item.condition,
+					url: item.url,
+					photos: item.photos
+				});
 			});
 			return res.json({ products });
 		} else {
