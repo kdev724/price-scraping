@@ -264,6 +264,9 @@ app.post("/search", async (req, res) => {
 		// Build search conditions for each pedal
 		const searchConditions = pedals.map(pedal => {
 			const nameWords = pedal.name.toLowerCase().split(" ");
+			// Escape special regex characters in each word
+			const escapedWords = nameWords.map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+			
 			return {
 				$and: [
 					{
@@ -274,7 +277,7 @@ app.post("/search", async (req, res) => {
 										{
 											$size: {
 												$filter: {
-													input: nameWords,
+													input: escapedWords,
 													as: "word",
 													cond: {
 														$regexMatch: {
@@ -286,7 +289,7 @@ app.post("/search", async (req, res) => {
 												}
 											}
 										},
-										nameWords.length
+										escapedWords.length
 									]
 								},
 								0.5
@@ -295,7 +298,7 @@ app.post("/search", async (req, res) => {
 					},
 					{
 						"condition.display_name": {
-							$regex: new RegExp(`^${pedal.condition}$`, "i")
+							$regex: new RegExp(`^${pedal.condition.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i")
 						}
 					}
 				]
@@ -736,7 +739,6 @@ const fetchListings = async (req, res) => {
 		res.status(500).json({ error: 'Internal server error' });
 	}
 };
-isGuitarPedalBrand('29 Pedals Toki Fuzzy Driver 2024')
 // Function to check if a brand is specifically for guitar pedals
 async function isGuitarPedalBrand(brandName) {
     if (!brandName) return false;
