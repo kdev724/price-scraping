@@ -141,6 +141,9 @@
             var customers = [];
             var customerId = 1;
             var dashboard = document.getElementById('dashboard');
+            
+            // Pagination state for each customer
+            var paginationState = {};
             function saveCustomerFromModal() {
                 var customerName = document.getElementById('customerName').value;
                 if (!customerName) {
@@ -279,6 +282,26 @@
                                 }
                             </tbody>
                         </table>
+                        <!-- Pagination Controls -->
+                        <div id="pagination${customer.id}" class="d-flex justify-content-between align-items-center mt-3" style="display: none !important;">
+                            <div class="d-flex align-items-center">
+                                <label for="pageSize${customer.id}" class="form-label me-2 mb-0">Items per page:</label>
+                                <select id="pageSize${customer.id}" class="form-select form-select-sm" style="width: auto;" onchange="changePageSize(${customer.id})">
+                                    <option value="10">10</option>
+                                    <option value="20">20</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <span id="paginationInfo${customer.id}" class="text-muted me-3"></span>
+                                <nav>
+                                    <ul id="paginationNav${customer.id}" class="pagination pagination-sm mb-0">
+                                        <!-- Pagination buttons will be generated here -->
+                                    </ul>
+                                </nav>
+                            </div>
+                        </div>
                     </div>
                 `;
             }
@@ -399,8 +422,24 @@
                 // Make API request to backend
             }
 
-            function getProducts(customerId, pedals) {
+            function getProducts(customerId, pedals, page = 1, pageSize = 10) {
                 var customerBody = document.getElementById(`customerBody${customerId}`);
+                
+                // Initialize pagination state for this customer
+                if (!paginationState[customerId]) {
+                    paginationState[customerId] = {
+                        currentPage: 1,
+                        pageSize: 10,
+                        totalItems: 0,
+                        totalPages: 0,
+                        pedals: []
+                    };
+                }
+                
+                // Update pagination state
+                paginationState[customerId].currentPage = page;
+                paginationState[customerId].pageSize = pageSize;
+                paginationState[customerId].pedals = pedals;
                 
                 // Show loading screen
                 customerBody.innerHTML = `
@@ -421,7 +460,11 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ pedals: JSON.stringify(pedals) })
+                    body: JSON.stringify({ 
+                        pedals: JSON.stringify(pedals),
+                        page: page,
+                        limit: pageSize
+                    })
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -431,9 +474,14 @@
                         loadingRow.remove();
                     }
                     
-                    if (data && Array.isArray(data.products)) {
+                    if (data && data.products && Array.isArray(data.products)) {
                         var customer = customers.find(c => c.id === customerId);
                         if (document.getElementById('noData') !== null) customerBody.removeChild(document.getElementById('noData'));
+                        
+                        // Clear existing products for this page
+                        customer.products = customer.products.filter(p => p.page !== page);
+                        
+                        // Add new products for this page
                         data.products.forEach((item, i) => {
                             customer.products.push({
                                 id: item.id,
@@ -444,14 +492,33 @@
                                 price: item.price,
                                 displayPrice: item.price.display || '',
                                 url: item.url ? item.url : '#',
-                                photos: item.photos || []
+                                photos: item.photos || [],
+                                page: page
                             });
                             customerBody.innerHTML += addTBodyHtml(customer, item);
                         });
+                        
+                        // Update pagination state
+                        paginationState[customerId].totalItems = data.pagination.totalItems;
+                        paginationState[customerId].totalPages = data.pagination.totalPages;
+                        
+                        // Update pagination controls
+                        updatePaginationControls(customerId);
+                        
+                        // Show pagination if there are multiple pages
+                        var paginationDiv = document.getElementById(`pagination${customerId}`);
+                        if (data.pagination.totalPages > 1) {
+                            paginationDiv.style.display = 'flex';
+                        } else {
+                            paginationDiv.style.display = 'none';
+                        }
+                        
                         var textArea = document.getElementById(`customerTextArea${customerId}`);
                         textArea.value = '';
                     } else {
                         customerBody.innerHTML = '<tr id="noData"><td colspan="9" class="text-center">No Data</td></tr>';
+                        var paginationDiv = document.getElementById(`pagination${customerId}`);
+                        paginationDiv.style.display = 'none';
                     }
                 })
                 .catch((err) => {
@@ -462,6 +529,8 @@
                         loadingRow.remove();
                     }
                     customerBody.innerHTML = '<tr><td colspan="9" class="text-center text-danger">Error loading data</td></tr>';
+                    var paginationDiv = document.getElementById(`pagination${customerId}`);
+                    paginationDiv.style.display = 'none';
                 });
             }
 
@@ -530,8 +599,93 @@
                     `;
                     
                     customer.products = [];
-                    getProducts(customerId, pedals);
+                    // Reset pagination state
+                    if (paginationState[customerId]) {
+                        paginationState[customerId].currentPage = 1;
+                    }
+                    getProducts(customerId, pedals, 1, paginationState[customerId]?.pageSize || 10);
                 }
+            }
+            
+            // Pagination control functions
+            function updatePaginationControls(customerId) {
+                var state = paginationState[customerId];
+                if (!state) return;
+                
+                var paginationInfo = document.getElementById(`paginationInfo${customerId}`);
+                var paginationNav = document.getElementById(`paginationNav${customerId}`);
+                var pageSizeSelect = document.getElementById(`pageSize${customerId}`);
+                
+                // Update pagination info
+                var startItem = (state.currentPage - 1) * state.pageSize + 1;
+                var endItem = Math.min(state.currentPage * state.pageSize, state.totalItems);
+                paginationInfo.textContent = `Showing ${startItem}-${endItem} of ${state.totalItems} items`;
+                
+                // Update page size select
+                pageSizeSelect.value = state.pageSize;
+                
+                // Generate pagination buttons
+                var paginationHtml = '';
+                
+                // Previous button
+                if (state.currentPage > 1) {
+                    paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${state.currentPage - 1})">Previous</a></li>`;
+                } else {
+                    paginationHtml += `<li class="page-item disabled"><span class="page-link">Previous</span></li>`;
+                }
+                
+                // Page numbers
+                var startPage = Math.max(1, state.currentPage - 2);
+                var endPage = Math.min(state.totalPages, state.currentPage + 2);
+                
+                if (startPage > 1) {
+                    paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, 1)">1</a></li>`;
+                    if (startPage > 2) {
+                        paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                    }
+                }
+                
+                for (var i = startPage; i <= endPage; i++) {
+                    if (i === state.currentPage) {
+                        paginationHtml += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+                    } else {
+                        paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${i})">${i}</a></li>`;
+                    }
+                }
+                
+                if (endPage < state.totalPages) {
+                    if (endPage < state.totalPages - 1) {
+                        paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                    }
+                    paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${state.totalPages})">${state.totalPages}</a></li>`;
+                }
+                
+                // Next button
+                if (state.currentPage < state.totalPages) {
+                    paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${state.currentPage + 1})">Next</a></li>`;
+                } else {
+                    paginationHtml += `<li class="page-item disabled"><span class="page-link">Next</span></li>`;
+                }
+                
+                paginationNav.innerHTML = paginationHtml;
+            }
+            
+            function goToPage(customerId, page) {
+                var state = paginationState[customerId];
+                if (!state || page < 1 || page > state.totalPages) return;
+                
+                getProducts(customerId, state.pedals, page, state.pageSize);
+            }
+            
+            function changePageSize(customerId) {
+                var pageSizeSelect = document.getElementById(`pageSize${customerId}`);
+                var newPageSize = parseInt(pageSizeSelect.value);
+                var state = paginationState[customerId];
+                
+                if (!state) return;
+                
+                // Reset to page 1 when changing page size
+                getProducts(customerId, state.pedals, 1, newPageSize);
             }
 
             function toggleSelectAll(customerId) {

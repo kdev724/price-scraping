@@ -240,6 +240,19 @@ app.post("/search", async (req, res) => {
 			return res.status(503).json({ error: 'Database not connected. Please try again.' });
 		}
 		
+		// Extract pagination parameters
+		const page = parseInt(req.body.page) || 1;
+		const limit = parseInt(req.body.limit) || 10;
+		const skip = (page - 1) * limit;
+		
+		// Validate pagination parameters
+		if (page < 1) {
+			return res.status(400).json({ error: 'Page must be greater than 0' });
+		}
+		if (limit < 1 || limit > 100) {
+			return res.status(400).json({ error: 'Limit must be between 1 and 100' });
+		}
+		
 		let pedals = [];
 		if (req.body && Array.isArray(req.body.pedals)) {
 			pedals = req.body.pedals;
@@ -261,7 +274,7 @@ app.post("/search", async (req, res) => {
 			titles.push(pedal.name);
 		});
 		
-		// Use $where with proper variable scoping by embedding the data
+		// Use $where with proper variable scoping by embedding the data + pagination
 		const foundPedals = await Pedal.find({
 			$where: function() {
 				// Embed the pedals data directly in the query
@@ -273,6 +286,8 @@ app.post("/search", async (req, res) => {
 					var similarity = 0;
 					var s = 1 / strArr.length;
 					
+					var titleLength = this.title.split(" ").length;
+					if (titleLength < strArr.length / 2) continue;
 					strArr.forEach((str) => {
 						if (this.title.toLowerCase().includes(str)) {
 							similarity += s;
@@ -286,14 +301,24 @@ app.post("/search", async (req, res) => {
 				}
 				return flag;
 			}.toString().replace('{{PEDALS_DATA}}', JSON.stringify(pedals))
-		});
+		})
+		.sort({ price: 1 }); // Sort by price ascending
 		
-		console.log(foundPedals.length)
-		if (foundPedals.length > 0) {
+		// Calculate pagination metadata from total results
+		const totalCount = foundPedals.length;
+		const totalPages = Math.ceil(totalCount / limit);
+		const hasNextPage = page < totalPages;
+		const hasPrevPage = page > 1;
+		
+		// Apply pagination to results
+		const paginatedPedals = foundPedals.slice(skip, skip + limit);
+		
+		console.log(paginatedPedals.length)
+		if (paginatedPedals.length > 0) {
 			var products = []
-			foundPedals.forEach((item, i) => {
+			paginatedPedals.forEach((item, i) => {
 				products.push({
-					id: i + 1,
+					id: skip + i + 1, // Global ID across all pages
 					title: item.title,
 					brand: item.brand,
 					productId: item.productId,
@@ -303,9 +328,34 @@ app.post("/search", async (req, res) => {
 					photos: item.photos
 				});
 			});
-			return res.json({ products });
+			
+			return res.json({ 
+				products,
+				pagination: {
+					currentPage: page,
+					totalPages: totalPages,
+					totalItems: totalCount,
+					itemsPerPage: limit,
+					hasNextPage: hasNextPage,
+					hasPrevPage: hasPrevPage,
+					nextPage: hasNextPage ? page + 1 : null,
+					prevPage: hasPrevPage ? page - 1 : null
+				}
+			});
 		} else {
-			return res.status(404).json({ error: "No pedals found" });
+			return res.status(404).json({ 
+				error: "No pedals found",
+				pagination: {
+					currentPage: page,
+					totalPages: 0,
+					totalItems: 0,
+					itemsPerPage: limit,
+					hasNextPage: false,
+					hasPrevPage: false,
+					nextPage: null,
+					prevPage: null
+				}
+			});
 		}
 	} catch (err) {
 		console.error("❌ Error fetching pedals:", err);
