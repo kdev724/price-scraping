@@ -288,7 +288,7 @@ app.post("/search", async (req, res) => {
 			}.toString().replace('{{PEDALS_DATA}}', JSON.stringify(pedals))
 		});
 		
-		console.log(foundPedals)
+		console.log(foundPedals.length)
 		if (foundPedals.length > 0) {
 			var products = []
 			foundPedals.forEach((item, i) => {
