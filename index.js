@@ -961,12 +961,13 @@ function fallbackBrandCheck(brandName) {
 // Server startup is now handled by startServer() function
 
 // Price Guide Transaction Table endpoint
-async function getProductsPriceGuide() {
-	var products = await Pedal.find({})
+async function getProductsPriceGuide(skip = 0) {
+	var products = await Pedal.find({}).limit(1000).skip(skip)
 	for (var product of products) {
 		await getPriceGuide(product)
 	}
-	console.log("All are finished", 123456)
+	getProductsPriceGuide(skip + 1000)
+	console.log("All are finished", skip)
 }
 
 async function getPriceGuide(product) {
