@@ -970,6 +970,7 @@ async function getProductsPriceGuide(skip = 0) {
 	console.log("All are finished", skip)
 }
 
+getPriceGuide({productId: "319235"})
 async function getPriceGuide(product) {
 	try {
 		const payload = {
@@ -1008,7 +1009,7 @@ async function getPriceGuide(product) {
 		console.log('Price Guide found for product:', product.productId);
 		product.priceGuide = [];
 		response.data.data.priceRecordsSearch.priceRecords.forEach(priceRecord => {
-			if (priceRecord.amountProduct.display.includes("$")) {
+			if (priceRecord.amountProduct && priceRecord.amountProduct.display.includes("$")) {
 				var number = parseFloat(priceRecord.amountProduct.display.replace("$", ""));
 				product.priceGuide.push({
 					_id: priceRecord._id,
