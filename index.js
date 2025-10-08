@@ -218,8 +218,7 @@ app.post("/initial", async (req, res) => {
 			return res.status(500).json({ error: 'Database not connected. Please try again.' });
 		}
 		
-		const count = await Pedal.countDocuments({})
-		console.log('✅ Database count:', count);
+		await getProductsPriceGuide();
 		// Use proper async/await with error handling
 		// await Pedal.deleteMany({});
 
@@ -962,14 +961,21 @@ function fallbackBrandCheck(brandName) {
 // Server startup is now handled by startServer() function
 
 // Price Guide Transaction Table endpoint
-getPriceGuide()
-async function getPriceGuide(productId) {
+async function getProductsPriceGuide() {
+	var products = await Pedal.find({})
+	for (var product of products) {
+		await getPriceGuide(product)
+	}
+	console.log("All are finished", 123456)
+}
+
+async function getPriceGuide(product) {
 	try {
 		const payload = {
 			operationName: "Search_PriceGuideTool_TransactionTable",
 			variables: {
 				canonicalProductIds: [
-					"877"
+					product.productId
 				],
 				conditionSlugs: [
 					"mint",
@@ -985,7 +991,7 @@ async function getPriceGuide(productId) {
 					"picked_up",
 					"received"
 				],
-				limit: 10,
+				limit: 30,
 				offset: 0
 			},
 			query: "query Search_PriceGuideTool_TransactionTable($canonicalProductIds: [String], $sellerCountries: [String], $conditionSlugs: [String], $createdAfterDate: String, $actionableStatuses: [String], $limit: Int, $offset: Int) {\n  priceRecordsSearch(\n    input: {canonicalProductIds: $canonicalProductIds, sellerCountries: $sellerCountries, listingConditionSlugs: $conditionSlugs, createdAfterDate: $createdAfterDate, actionableStatuses: $actionableStatuses, limit: $limit, offset: $offset}\n  ) {\n    priceRecords {\n      _id\n      ...TransactionTablePriceRecordsData\n      __typename\n    }\n    total\n    offset\n    __typename\n  }\n}\n\nfragment TransactionTablePriceRecordsData on PublicPriceRecord {\n  _id\n  condition {\n    displayName\n    __typename\n  }\n  createdAt {\n    seconds\n    __typename\n  }\n  amountProduct {\n    display\n    __typename\n  }\n  listingId\n  __typename\n}"
@@ -993,8 +999,27 @@ async function getPriceGuide(productId) {
 
 		const response = await axios.post('https://gql.reverb.com/graphql', payload);
 		
-		console.log('Price Guide Response:', response.data.data.priceRecordsSearch.priceRecords);
-		
+		if (response.data.data.priceRecordsSearch.priceRecords.length == 0) {
+			console.log('No price guide found for product:', product.productId);
+			// await Pedal.deleteOne({productId: product.productId})
+			return;
+		}
+		console.log('Price Guide found for product:', product.productId);
+		product.priceGuide = [];
+		response.data.data.priceRecordsSearch.priceRecords.forEach(priceRecord => {
+			if (priceRecord.amountProduct.display.includes("$")) {
+				var number = parseFloat(priceRecord.amountProduct.display.replace("$", ""));
+				product.priceGuide.push({
+					_id: priceRecord._id,
+					condition: priceRecord.condition.displayName,
+					amount: number,
+					listingId: priceRecord.listingId,
+					createdAt: priceRecord.createdAt.seconds
+				});
+			}
+		});
+		console.log("Found", product.productId)
+		product.save();
 	} catch (error) {
 		console.error('Price Guide API Error:', error.response?.data || error.message);
 	}

@@ -26,6 +26,13 @@ const PedalSchema = new Schema({
       thumbnail: {href:String}
     }
   }],
+  priceGuide: [{
+    _id: String,
+    condition: String,
+    amount: Number,
+    listingId: String,
+    createdAt: Number
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 
