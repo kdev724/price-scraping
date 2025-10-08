@@ -962,7 +962,7 @@ function fallbackBrandCheck(brandName) {
 
 // Price Guide Transaction Table endpoint
 async function getProductsPriceGuide(skip = 0) {
-	var products = await Pedal.find({}).limit(1000).skip(skip)
+	var products = await Pedal.find({brand: "Boss"}).limit(1000).skip(skip)
 	for (var product of products) {
 		await getPriceGuide(product)
 	}
@@ -970,7 +970,6 @@ async function getProductsPriceGuide(skip = 0) {
 	console.log("All are finished", skip)
 }
 
-getPriceGuide({productId: "319235"})
 async function getPriceGuide(product) {
 	try {
 		const payload = {
@@ -979,12 +978,12 @@ async function getPriceGuide(product) {
 				canonicalProductIds: [
 					product.productId
 				],
-				conditionSlugs: [
-					"mint",
-					"excellent",
-					"very-good",
-					"good"
-				],
+				// conditionSlugs: [
+				// 	"mint",
+				// 	"excellent",
+				// 	"very-good",
+				// 	"good"
+				// ],
 				sellerCountries: [
 					"US"
 				],
@@ -1008,6 +1007,7 @@ async function getPriceGuide(product) {
 		}
 		console.log('Price Guide found for product:', product.productId);
 		product.priceGuide = [];
+		console.log(response.data.data.priceRecordsSearch.priceRecords)
 		response.data.data.priceRecordsSearch.priceRecords.forEach(priceRecord => {
 			if (priceRecord.amountProduct && priceRecord.amountProduct.display.includes("$")) {
 				var number = parseFloat(priceRecord.amountProduct.display.replace("$", ""));
