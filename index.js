@@ -218,12 +218,14 @@ app.post("/initial", async (req, res) => {
 			return res.status(500).json({ error: 'Database not connected. Please try again.' });
 		}
 		
+		const count = await Pedal.countDocuments({})
+		console.log('✅ Database count:', count);
 		// Use proper async/await with error handling
 		// await Pedal.deleteMany({});
 
 		// Process existing pedals in batches to verify they are actually guitar pedals
-		await processExistingPedalsInBatches();
-		console.log('✅ Database cleared successfully');
+		// await processExistingPedalsInBatches();
+		// console.log('✅ Database cleared successfully');
 		
 		// Now fetch listings
 		// await fetchListings(req, res);
@@ -960,6 +962,7 @@ function fallbackBrandCheck(brandName) {
 // Server startup is now handled by startServer() function
 
 // Price Guide Transaction Table endpoint
+getPriceGuide()
 async function getPriceGuide(productId) {
 	try {
 		const payload = {
@@ -990,7 +993,7 @@ async function getPriceGuide(productId) {
 
 		const response = await axios.post('https://gql.reverb.com/graphql', payload);
 		
-		console.log('Price Guide Response:', response.data.data.priceRecordsSearch.priceRecords.length);
+		console.log('Price Guide Response:', response.data.data.priceRecordsSearch.priceRecords);
 		
 	} catch (error) {
 		console.error('Price Guide API Error:', error.response?.data || error.message);
