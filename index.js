@@ -218,7 +218,9 @@ app.post("/initial", async (req, res) => {
 			return res.status(500).json({ error: 'Database not connected. Please try again.' });
 		}
 		
-		await getProductsPriceGuide();
+		const count = await Pedal.countDocuments({brand: "Boss", priceGuide: {$exists: true}})
+		console.log(count)
+		// await getProductsPriceGuide();
 		// Use proper async/await with error handling
 		// await Pedal.deleteMany({});
 
@@ -966,7 +968,9 @@ async function getProductsPriceGuide(skip = 0) {
 	for (var product of products) {
 		await getPriceGuide(product)
 	}
-	getProductsPriceGuide(skip + 1000)
+	if (products.length > 0) {
+		getProductsPriceGuide(skip + 1000)
+	}
 	console.log("All are finished", skip)
 }
 
@@ -984,14 +988,14 @@ async function getPriceGuide(product) {
 				// 	"very-good",
 				// 	"good"
 				// ],
-				sellerCountries: [
-					"US"
-				],
-				actionableStatuses: [
-					"shipped",
-					"picked_up",
-					"received"
-				],
+				// sellerCountries: [
+				// 	"US"
+				// ],
+				// actionableStatuses: [
+				// 	"shipped",
+				// 	"picked_up",
+				// 	"received"
+				// ],
 				limit: 30,
 				offset: 0
 			},
