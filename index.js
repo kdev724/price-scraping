@@ -961,7 +961,7 @@ function fallbackBrandCheck(brandName) {
 async function getProductsPriceGuide(skip = 0) {
 	var products = await Pedal.find({}).limit(1000).skip(skip)
 	for (var product of products) {
-		await getPriceGuide({productId: product.productId, condition: product.condition.slug})
+		await getPriceGuide(product)
 	}
 	if (products.length > 0) {
 		getProductsPriceGuide(skip + 1000)
@@ -978,7 +978,7 @@ async function getPriceGuide(product) {
 					product.productId
 				],
 				conditionSlugs: [
-					product.condition
+					product.condition.slug
 				],
 				// sellerCountries: [
 				// 	"US"
