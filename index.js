@@ -998,7 +998,7 @@ async function getPriceGuide(product) {
 		if (response.data.data.priceRecordsSearch && response.data.data.priceRecordsSearch.priceRecords.length == 0) {
 			console.log('No price guide found for product:', product.productId);
 			product.keywords = [];
-			product.save();
+			await product.save();
 			// await Pedal.deleteOne({productId: product.productId})
 			return;
 		}
