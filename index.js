@@ -995,7 +995,7 @@ async function getPriceGuide(product) {
 		};
 
 		const response = await axios.post('https://gql.reverb.com/graphql', payload);
-		if (response.data.data.priceRecordsSearch && response.data.data.priceRecordsSearch.priceRecords.length == 0) {
+		if (!response.data.data.priceRecordsSearch || response.data.data.priceRecordsSearch.priceRecords.length == 0) {
 			console.log('No price guide found for product:', product.productId);
 			product.keywords = [];
 			await product.save();
