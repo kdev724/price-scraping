@@ -219,15 +219,11 @@ app.post("/initial", async (req, res) => {
 		}
 		
 		await getProductsPriceGuide();
-		// Use proper async/await with error handling
-		// await Pedal.deleteMany({});
 
 		// Process existing pedals in batches to verify they are actually guitar pedals
 		// await processExistingPedalsInBatches();
 		// console.log('✅ Database cleared successfully');
 		
-		// Now fetch listings
-		// await fetchListings(req, res);
 	} catch (error) {
 		console.error('❌ Error in /initial endpoint:', error);
 		res.status(500).json({ error: 'Failed to clear database or fetch listings' });
@@ -965,7 +961,7 @@ function fallbackBrandCheck(brandName) {
 async function getProductsPriceGuide(skip = 0) {
 	var products = await Pedal.find({}).limit(1000).skip(skip)
 	for (var product of products) {
-		await getPriceGuide(product)
+		await getPriceGuide({productId: product.productId, condition: product.condition.slug})
 	}
 	if (products.length > 0) {
 		getProductsPriceGuide(skip + 1000)
@@ -981,12 +977,9 @@ async function getPriceGuide(product) {
 				canonicalProductIds: [
 					product.productId
 				],
-				// conditionSlugs: [
-				// 	"mint",
-				// 	"excellent",
-				// 	"very-good",
-				// 	"good"
-				// ],
+				conditionSlugs: [
+					product.condition
+				],
 				// sellerCountries: [
 				// 	"US"
 				// ],
@@ -998,13 +991,14 @@ async function getPriceGuide(product) {
 				limit: 30,
 				offset: 0
 			},
-			query: "query Search_PriceGuideTool_TransactionTable($canonicalProductIds: [String], $sellerCountries: [String], $conditionSlugs: [String], $createdAfterDate: String, $actionableStatuses: [String], $limit: Int, $offset: Int) {\n  priceRecordsSearch(\n    input: {canonicalProductIds: $canonicalProductIds, sellerCountries: $sellerCountries, listingConditionSlugs: $conditionSlugs, createdAfterDate: $createdAfterDate, actionableStatuses: $actionableStatuses, limit: $limit, offset: $offset}\n  ) {\n    priceRecords {\n      _id\n      ...TransactionTablePriceRecordsData\n      __typename\n    }\n    total\n    offset\n    __typename\n  }\n}\n\nfragment TransactionTablePriceRecordsData on PublicPriceRecord {\n  _id\n  condition {\n    displayName\n    __typename\n  }\n  createdAt {\n    seconds\n    __typename\n  }\n  amountProduct {\n    display\n    __typename\n  }\n  listingId\n  __typename\n}"
+			query: "query Search_PriceGuideTool_TransactionTable($canonicalProductIds: [String], $conditionSlugs: [String], $createdAfterDate: String, $limit: Int, $offset: Int) {\n  priceRecordsSearch(\n    input: {canonicalProductIds: $canonicalProductIds, listingConditionSlugs: $conditionSlugs, createdAfterDate: $createdAfterDate, limit: $limit, offset: $offset}\n  ) {\n    priceRecords {\n      _id\n      ...TransactionTablePriceRecordsData\n      __typename\n    }\n    total\n    offset\n    __typename\n  }\n}\n\nfragment TransactionTablePriceRecordsData on PublicPriceRecord {\n  _id\n  condition {\n    displayName\n    __typename\n  }\n  createdAt {\n    seconds\n    __typename\n  }\n  amountProduct {\n    display\n    __typename\n  }\n  listingId\n  __typename\n}"
 		};
 
 		const response = await axios.post('https://gql.reverb.com/graphql', payload);
-		
-		if (response.data.data.priceRecordsSearch.priceRecords.length == 0) {
+		if (response.data.data.priceRecordsSearch && response.data.data.priceRecordsSearch.priceRecords.length == 0) {
 			console.log('No price guide found for product:', product.productId);
+			product.keywords = [];
+			product.save();
 			// await Pedal.deleteOne({productId: product.productId})
 			return;
 		}
@@ -1023,7 +1017,8 @@ async function getPriceGuide(product) {
 			}
 		});
 		console.log("Found", product.productId)
-		product.save();
+		product.keywords = [];
+		await product.save();
 	} catch (error) {
 		console.error('Price Guide API Error:', error.response?.data || error.message);
 	}
