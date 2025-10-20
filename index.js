@@ -218,9 +218,7 @@ app.post("/initial", async (req, res) => {
 			return res.status(500).json({ error: 'Database not connected. Please try again.' });
 		}
 		
-		const count = await Pedal.countDocuments({brand: "Boss", priceGuide: {$exists: true}})
-		console.log(count)
-		// await getProductsPriceGuide();
+		await getProductsPriceGuide();
 		// Use proper async/await with error handling
 		// await Pedal.deleteMany({});
 
@@ -326,6 +324,7 @@ app.post("/search", async (req, res) => {
 					brand: item.brand,
 					productId: item.productId,
 					price: item.price,
+					priceGuide: item.priceGuide,
 					condition: item.condition,
 					url: item.url,
 					photos: item.photos
@@ -964,7 +963,7 @@ function fallbackBrandCheck(brandName) {
 
 // Price Guide Transaction Table endpoint
 async function getProductsPriceGuide(skip = 0) {
-	var products = await Pedal.find({brand: "Boss"}).limit(1000).skip(skip)
+	var products = await Pedal.find({}).limit(1000).skip(skip)
 	for (var product of products) {
 		await getPriceGuide(product)
 	}
@@ -1011,7 +1010,6 @@ async function getPriceGuide(product) {
 		}
 		console.log('Price Guide found for product:', product.productId);
 		product.priceGuide = [];
-		console.log(response.data.data.priceRecordsSearch.priceRecords)
 		response.data.data.priceRecordsSearch.priceRecords.forEach(priceRecord => {
 			if (priceRecord.amountProduct && priceRecord.amountProduct.display.includes("$")) {
 				var number = parseFloat(priceRecord.amountProduct.display.replace("$", ""));

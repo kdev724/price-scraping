@@ -90,6 +90,34 @@
             .form-control {
                 font-family: inherit;
             }
+            
+            /* Price guide flag styles */
+            .price-flag {
+                display: inline-block;
+                margin-left: 8px;
+                padding: 2px 6px;
+                border-radius: 12px;
+                font-size: 0.85em;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            
+            .price-flag.has-guide {
+                color: #155724;
+            }
+            
+            .price-flag.no-guide {
+                color: #ff0019;
+            }
+            
+            .price-flag.has-guide::before {
+                content: "✓ ";
+            }
+            
+            .price-flag.no-guide::before {
+                content: "⚠ ";
+            }
         </style>
     </head>
     <body>
@@ -167,14 +195,12 @@
                             var sheet = workbook.Sheets[workbook.SheetNames[0]];    
                             var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
                             var docs = JSON.parse(JSON.stringify(rows, null, 2))
-                            console.log(docs);
                             var customer = {id: customerId, name: "Unknown", products: [], low: 20, middle: 0.7, high: 0.75};
                             for (var i = 0; i < docs.length; i++) {
                                 if (docs[i].length == 0) continue;
                                 customer.products.push({title: docs[i][0], condition: docs[i][1], price: {}, photos: []});
                             }
 
-                            console.log(customer);
                             saveCustomerTable(customer);
                             customers.push(customer);
                             refreshProducts(customerId);
@@ -209,7 +235,6 @@
                                     var customer = {id: customerId, name: group[0][0], products: [], low: 20, middle: 0.7, high: 0.75};
                                     for (var i = 1; i < group.length - 1; i++) {
                                         if (group[i].length < 4) continue;
-                                        console.log(group[i][2]);
                                         customer.products.push({
                                             title: group[i][0],
                                             brand: group[i][1],
@@ -219,7 +244,8 @@
                                                 amount: parseFloat(group[i][3].replace(/[^0-9.-]+/g, ""))
                                             },
                                             url: group[i][5] || '#',
-                                            photos: [{_links: {thumbnail: {href: group[i][6] || ''}}}]
+                                            photos: [{_links: {thumbnail: {href: group[i][6] || ''}}}],
+                                            hasPriceGuide: Boolean(group[i][7])
                                         });
                                     }
                                     saveCustomerTable(customer);
@@ -481,19 +507,32 @@
                         // Clear existing products for this page
                         customer.products = customer.products.filter(p => p.page !== page);
                         
+                        
                         // Add new products for this page
                         data.products.forEach((item, i) => {
+                            item.hasPriceGuide = false;
+                            var price = item.price
+                            if (item.priceGuide && item.priceGuide.length > 0) {
+                                item.hasPriceGuide = true
+                                var priceGuide = item.priceGuide.reduce((acc, curr) => acc + curr.amount, 0);
+                                priceGuide = priceGuide / item.priceGuide.length;
+                                price = {
+                                    amount: priceGuide,
+                                    display: '$' + priceGuide.toFixed(2)
+                                }
+                            }
                             customer.products.push({
                                 id: item.id,
                                 productId: item.productId || '',
                                 title: item.title || '',
                                 brand: item.title.split(" ")[0] || '',
                                 condition: item.condition.display_name || '',
-                                price: item.price,
+                                price,
                                 displayPrice: item.price.display || '',
                                 url: item.url ? item.url : '#',
                                 photos: item.photos || [],
-                                page: page
+                                page: page,
+                                hasPriceGuide: item.hasPriceGuide
                             });
                             customerBody.innerHTML += addTBodyHtml(customer, item);
                         });
@@ -557,7 +596,7 @@
                              item.photos[0]._links.small_crop?.href || 
                              item.photos[0]._links.full?.href || "";
                 }
-                
+                console.log(item.hasPriceGuide)
                 return `
                     <tr>
                         <td>
@@ -567,7 +606,13 @@
                         <td>${item.title || ''}</td>
                         <td>${item.title.split(" ")[0] || ''}</td>
                         <td>${typeof(item.condition) == "string" ? item.condition : item.condition.display_name}</td>
-                        <td>${item.price.display || ''}</td>
+                        <td style="min-width: 140px;">
+                            ${item.hasPriceGuide !== undefined ? 
+                                `<span class="price-flag ${item.hasPriceGuide ? 'has-guide' : 'no-guide'}" title="${item.hasPriceGuide ? 'Has price guide data' : 'No price guide data'}"></span>` : 
+                                ''
+                            }
+                            <span>${item.price.display || ''}</span>
+                        </td>
                         <td>$${getAdjustPrice(customer, item)}</td>
                         <td><a href="${item.url ? item.url : '#'}" target="_blank">Link</a></td>
                         <td style="text-align: center">
@@ -818,7 +863,8 @@
                             product.price.display || '$0',
                             getAdjustPrice(customer, product) || '$0',
                             product.url,
-                            product.photos.length > 0 ? product.photos[0]._links.thumbnail.href : ''
+                            product.photos.length > 0 ? product.photos[0]._links.thumbnail.href : '',
+                            product.hasPriceGuide
                         ]);
                         totalPrice += product.price.amount
                     });
