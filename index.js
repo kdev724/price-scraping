@@ -269,97 +269,40 @@ app.post("/search", async (req, res) => {
 		
 		let foundPedals = [];
 		if (!req.body.toPage) {
-			console.log(`🔍 MongoDB Atlas Search for ${pedals.length} pedals`);
-			
-			// Use MongoDB Atlas Search aggregation pipeline
-			const searchResults = [];
-			
-			for (const pedal of pedals) {
-				console.log(`Searching for: "${pedal.name}" with condition "${pedal.condition}"`);
-				
-				try {
-					const results = await Pedal.aggregate([
-						{
-							$search: {
-								index: "default", // Atlas Search index name
-								compound: {
-									must: [
-										{
-											text: {
-												query: pedal.name,
-												path: "title",
-												fuzzy: {
-													maxEdits: 2, // allows 2 typos
-													prefixLength: 2,
-												},
-											},
-										}
-									],
-									filter: [
-										{
-											text: {
-												query: pedal.condition,
-												path: "condition.display_name",
-											},
-										}
-									],
-								},
-							},
-						},
-						{
-							$addFields: {
-								searchScore: { $meta: "searchScore" },
-								matchedPedal: pedal.name
-							}
-						},
-						{
-							$sort: { searchScore: -1, price: 1 }
-						},
-						{
-							$limit: 50 // Limit results per pedal to avoid too many results
-						}
-					]);
-					
-					console.log(`Found ${results.length} matches for "${pedal.name}"`);
-					searchResults.push(...results);
-					
-					// Log top matches
-					results.slice(0, 3).forEach((result, index) => {
-						console.log(`  ${index + 1}. "${result.title}" (score: ${result.searchScore?.toFixed(3) || 'N/A'})`);
-					});
-					
-				} catch (error) {
-					console.error(`Error searching for "${pedal.name}":`, error);
-					// Fallback to regular find if Atlas Search fails
-					const fallbackResults = await Pedal.find({
-						title: { $regex: pedal.name, $options: 'i' },
-						'condition.display_name': { $regex: pedal.condition, $options: 'i' }
-					}).sort({ price: 1 }).limit(10);
-					
-					fallbackResults.forEach(result => {
-						searchResults.push({
-							...result.toObject(),
-							searchScore: 0.5, // Default score for fallback
-							matchedPedal: pedal.name
-						});
-					});
-				}
-			}
-			
-			// Remove duplicates and sort by search score
-			const uniqueResults = searchResults.filter((pedal, index, self) => 
-				index === self.findIndex(p => p._id.toString() === pedal._id.toString())
-			);
-			
-			foundPedals = uniqueResults.sort((a, b) => {
-				// Sort by search score first, then by price
-				if (a.searchScore !== b.searchScore) {
-					return (b.searchScore || 0) - (a.searchScore || 0);
-				}
-				return a.price - b.price;
+			var titles = [];
+			pedals.forEach((pedal) => {
+				titles.push(pedal.name);
 			});
 			
-			console.log(`🎯 Atlas Search completed: ${foundPedals.length} final results`);
+			// Use $where with proper variable scoping by embedding the data + pagination
+			foundPedals = await Pedal.find({
+				$where: function() {
+					// Embed the pedals data directly in the query
+					const searchPedals = JSON.parse('{{PEDALS_DATA}}');
+					let flag = false;
+
+					for (var i = 0; i < searchPedals.length; i++) {
+						var strArr = searchPedals[i].name.toLowerCase().split(" ");
+						var similarity = 0;
+						var s = 1 / strArr.length;
+						
+						var titleLength = this.title.split(" ").length;
+						if (titleLength < strArr.length / 2) continue;
+						strArr.forEach((str) => {
+							if (this.title.toLowerCase().includes(str)) {
+								similarity += s;
+							}
+						});
+						
+						if (similarity > 0.7 && this.condition.display_name.toLowerCase() === searchPedals[i].condition.toLowerCase()) {
+							flag = true;
+							break;
+						}
+					}
+					return flag;
+				}.toString().replace('{{PEDALS_DATA}}', JSON.stringify(pedals))
+			})
+			.sort({ price: 1 }); // Sort by price ascending
 		}
 		else {
 			foundPedals = searchedPedals.slice()
