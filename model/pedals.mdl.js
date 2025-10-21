@@ -18,6 +18,11 @@ const PedalSchema = new Schema({
     display: String
   },
   url: String,
+  csp: {
+    slug: String,
+    id: String,
+  },
+  cp_ids: [String],
   photos: [{
     _links: {
       large_crop: {href:String},
@@ -33,6 +38,7 @@ const PedalSchema = new Schema({
     listingId: String,
     createdAt: Number
   }],
+  canonicalProductId: String,
   createdAt: { type: Date, default: Date.now }
 });
 

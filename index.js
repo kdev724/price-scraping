@@ -218,7 +218,7 @@ app.post("/initial", async (req, res) => {
 			return res.status(500).json({ error: 'Database not connected. Please try again.' });
 		}
 		
-		// await getProductsPriceGuide();
+		await getCanonicalProductId(0)
 
 		// Process existing pedals in batches to verify they are actually guitar pedals
 		// await processExistingPedalsInBatches();
@@ -383,7 +383,6 @@ const traitValues = {
 	"jet": "jet-1",
 	"rebelrelic": "rebelrelic-1"
 }
-
 const getProducts = async (brand) => {
 	let brandName = brand.url.split('/').pop();
 	// if (!brand.name.includes(" ")) {
@@ -437,6 +436,7 @@ const getProducts = async (brand) => {
 				const listings = response.data.listings;
 				// Process listings in batches to avoid overwhelming the database
 				const batchSize = 10;
+				console.log(listings[3])
 				for (let i = 0; i < listings.length; i += batchSize) {
 					const batch = listings.slice(i, i + batchSize);
 					
@@ -453,23 +453,23 @@ const getProducts = async (brand) => {
 							
 							try {
 								// Use upsert to update existing pedal or create new one
-								await Pedal.findOneAndUpdate(
-									{ productId: item.id }, // filter by productId to find existing
-									{
-										title,
-										brand: brand.name,
-										productId: item.id,
-										price: item.price,
-										condition: item.condition,
-										url: item._links.web.href,
-										photos: item.photos,
-									},
-									{ 
-										upsert: true, 
-										new: true, // return the updated/created document
-										setDefaultsOnInsert: true // apply schema defaults on insert
-									}
-								);
+								// await Pedal.findOneAndUpdate(
+								// 	{ productId: item.id }, // filter by productId to find existing
+								// 	{
+								// 		title,
+								// 		brand: brand.name,
+								// 		productId: item.id,
+								// 		price: item.price,
+								// 		condition: item.condition,
+								// 		url: item._links.web.href,
+								// 		photos: item.photos,
+								// 	},
+								// 	{ 
+								// 		upsert: true, 
+								// 		new: true, // return the updated/created document
+								// 		setDefaultsOnInsert: true // apply schema defaults on insert
+								// 	}
+								// );
 							} catch (dbError) {
 								console.error(`❌ Database error for item ${item.id}:`, dbError.message);
 							}
@@ -497,6 +497,274 @@ const getProducts = async (brand) => {
 	}
 
 }
+const getCanonicalProductId = async (skip) => {
+	var products = await Pedal.find({}).limit(1000).skip(skip)
+	for (var product of products) {
+		await gett(product)
+	}
+	if (products.length > 0) {
+		getCanonicalProductId(skip + 1000)
+	}
+	console.log("All are finished", skip)
+}
+const testFindFavorite = async (product) => {
+	try {
+		const listingsSearchRequest = {
+			"categorySlugs": [],
+			"brandSlugs": [],
+			"conditionSlugs": [],
+			"shippingRegionCodes": [],
+			"itemState": [],
+			"itemCity": [],
+			"curatedSetSlugs": [],
+			"saleSlugs": [],
+			"cspSlug": product.csp.slug,
+			"withProximityFilter": {
+				"proximity": false
+			},
+			"boostedItemRegionCode": "",
+			"traitValues": [],
+			"excludeCategoryUuids": [],
+			"excludeBrandSlugs": [],
+			"likelihoodToSellExperimentGroup": 0,
+			"countryOfOrigin": [],
+			"contexts": [],
+			"autodirects": "IMPROVED_DATA",
+			"multiClientExperiments": [],
+			"canonicalFinishes": [],
+			"skipAutocorrect": false,
+			"limit": 45,
+			"offset": 0,
+			"fallbackToOr": true,
+			"collapsible": null,
+			"cpNewConditionAndTnpFeaturedWinnerRanks": null,
+			"sort": "NONE"
+		};
+
+		const operationName = "Core_FindFavorite";
+		const query = `query Core_FindFavorite($listingsSearchRequest: Input_reverb_search_ListingsSearchRequest, $shopSlug: String) {
+			findFavorite(
+				input: {listingsSearchRequest: $listingsSearchRequest, shopSlug: $shopSlug}
+			) {
+				isFavorite
+				canFavorite
+				favorite {
+					id
+					favorited
+					searchableId
+					searchableType
+					title
+					emailEnabled
+					feedEnabled
+					queryParams
+					subtitle
+					link {
+						href
+						__typename
+					}
+					__typename
+				}
+				__typename
+			}
+		}`;
+
+		const variables = {
+			listingsSearchRequest,
+		};
+
+		try {
+			const response = await axios.post('https://gql.reverb.com/graphql', {
+				operationName,
+				query,
+				variables
+			}, {
+				headers: {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json',
+				}
+			});
+
+			if (response.data.data && response.data.data.findFavorite && response.data.data.findFavorite.favorite && response.data.data.findFavorite.favorite.queryParams) {
+				var queryParams = JSON.parse(response.data.data.findFavorite.favorite.queryParams)
+				product.cp_ids = queryParams["cp_ids"]
+				console.log(product.cp_ids)
+				await product.save()
+			}
+		} catch (error) {
+			console.error('GraphQL Error:', error.response?.data || error.message);
+			throw error;
+		}
+	} catch (error) {
+		console.error('Find Favorite test failed:', error.message);
+	}
+}
+
+
+async function gett(product) {
+	const response = await axios.get('https://api.reverb.com/api/priceguide',
+	{
+		headers: {
+			'Authorization': `Bearer ${accessToken}`,
+			'Content-Type': 'application/json',
+			'Accept': 'application/json',
+			'Accept-Version': '3.0'
+		},
+		params: {
+			query: product.title
+		}
+	});
+	if (response.data.price_guides.length > 0) {
+		if (response.data.price_guides[0].comparison_shopping_page_id) {
+			product.csp.id = response.data.price_guides[0].comparison_shopping_page_id
+			await testProductReviews(product)
+		}
+	}
+	else {
+		console.log("No price guide found for", product.title)
+	}
+}
+
+const getProductReviews = async (product, offset = 0, verified = false, ratings = null, sort = null, fullTextQuery = null) => {
+	const operationName = "Core_Product_Reviews";
+	const query = `query Core_Product_Reviews($cspId: String, $offset: Int, $ratings: [reverb_search_ProductReviewsSearchRequest_Rating], $verified: Boolean, $sort: reverb_search_ProductReviewsSearchRequest_Sort, $fullTextQuery: String) {
+		csp(input: {id: $cspId}) {
+			_id
+			...ProductReviewCSPFields
+			productReviewSearch(
+				input: {sort: $sort, ratings: $ratings, verified: $verified, limit: 5, offset: $offset, fullTextQuery: $fullTextQuery}
+			) {
+				total
+				productReviews {
+					_id
+					...ProductReviewCardFields
+					__typename
+				}
+				filters {
+					...ProductReviewFilterFields
+					__typename
+				}
+				__typename
+			}
+			statsSearch: productReviewSearch(input: {limit: 0}) {
+				stats {
+					total
+					averageRating
+					ratingsDistribution {
+						rating
+						reviewCount
+						__typename
+					}
+					__typename
+				}
+				__typename
+			}
+			__typename
+		}
+	}
+
+	fragment ProductReviewCardFields on ProductReview {
+		_id
+		id
+		title
+		body
+		rating
+		createdAt
+		voteCount
+		verified
+		voted
+		isMyReview
+		reported
+		reviewer {
+			shortname
+			links {
+				avatar {
+					href
+					__typename
+				}
+				__typename
+			}
+			__typename
+		}
+		__typename
+	}
+
+	fragment ProductReviewFilterFields on reverb_search_Filter {
+		name
+		key
+		widgetType
+		options {
+			count {
+				value
+				__typename
+			}
+			name
+			selected
+			paramName
+			setValues
+			unsetValues
+			optionValue
+			__typename
+		}
+		__typename
+	}
+
+	fragment ProductReviewCSPFields on CSP {
+		_id
+		id
+		slug
+		title
+		myReview {
+			id
+			body
+			title
+			rating
+			__typename
+		}
+		__typename
+	}`;
+
+	const variables = {
+		cspId: product.csp.id,
+		offset,
+		verified,
+		ratings,
+		sort,
+		fullTextQuery
+	};
+
+	try {
+		const response = await axios.post('https://gql.reverb.com/graphql', {
+			operationName,
+			query,
+			variables
+		}, {
+			headers: {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+			}
+		});
+		if (response.data.data && response.data.data.csp) {
+			product.csp.slug = response.data.data.csp.slug
+			await testFindFavorite(product)
+		}
+		else {
+			console.log('No product reviews found for', product.title)
+		}
+	} catch (error) {
+		console.error('Product Reviews GraphQL Error:', error.response?.data || error.message);
+		throw error;
+	}
+}
+
+// Test the product reviews query
+const testProductReviews = async (product) => {
+	try {
+		await getProductReviews(product, 0, false);
+	} catch (error) {
+		console.error('Product Reviews test failed:', error.message);
+	}
+}
+
 // Process brands in batches to save OpenAI tokens
 async function processBrandsInBatches(brands, batchSize = 10) {
     const pedalBrands = [];
@@ -986,9 +1254,9 @@ async function getPriceGuide(product) {
 				conditionSlugs: [
 					product.condition.slug
 				],
-				// sellerCountries: [
-				// 	"US"
-				// ],
+				sellerCountries: [
+					"US"
+				],
 				// actionableStatuses: [
 				// 	"shipped",
 				// 	"picked_up",
@@ -1022,9 +1290,9 @@ async function getPriceGuide(product) {
 				});
 			}
 		});
-		console.log("Found", product.productId)
+		console.log("Found", response.data.data.priceRecordsSearch.priceRecords)
 		product.keywords = [];
-		await product.save();
+		// await product.save();
 	} catch (error) {
 		console.error('Price Guide API Error:', error.response?.data || error.message);
 	}
