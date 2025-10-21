@@ -219,7 +219,7 @@ app.post("/initial", async (req, res) => {
 		}
 		
 		Pedal.countDocuments({
-			priceGuide: { $exists: true, $ne: [] }
+			cp_ids: { $exists: true, $ne: [] }
 		  }).then(count => {
 			console.log("count", count);
 		  }).catch(err => {
