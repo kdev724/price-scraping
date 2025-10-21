@@ -218,7 +218,7 @@ app.post("/initial", async (req, res) => {
 			return res.status(500).json({ error: 'Database not connected. Please try again.' });
 		}
 		
-		await getProductsPriceGuide();
+		// await getProductsPriceGuide();
 
 		// Process existing pedals in batches to verify they are actually guitar pedals
 		// await processExistingPedalsInBatches();
@@ -230,6 +230,7 @@ app.post("/initial", async (req, res) => {
 	}
 })	
 
+var searchedPedals = []
 app.post("/search", async (req, res) => {
 	try {
 		// Check if MongoDB is connected before proceeding
@@ -266,47 +267,52 @@ app.post("/search", async (req, res) => {
 			return res.status(400).json({ error: 'No pedals provided' });
 		}
 		
-		var titles = [];
-		pedals.forEach((pedal) => {
-			titles.push(pedal.name);
-		});
-		
-		// Use $where with proper variable scoping by embedding the data + pagination
-		const foundPedals = await Pedal.find({
-			$where: function() {
-				// Embed the pedals data directly in the query
-				const searchPedals = JSON.parse('{{PEDALS_DATA}}');
-				let flag = false;
+		let foundPedals = [];
+		if (!req.body.toPage) {
+			var titles = [];
+			pedals.forEach((pedal) => {
+				titles.push(pedal.name);
+			});
+			
+			// Use $where with proper variable scoping by embedding the data + pagination
+			foundPedals = await Pedal.find({
+				$where: function() {
+					// Embed the pedals data directly in the query
+					const searchPedals = JSON.parse('{{PEDALS_DATA}}');
+					let flag = false;
 
-				for (var i = 0; i < searchPedals.length; i++) {
-					var strArr = searchPedals[i].name.toLowerCase().split(" ");
-					var similarity = 0;
-					var s = 1 / strArr.length;
-					
-					var titleLength = this.title.split(" ").length;
-					if (titleLength < strArr.length / 2) continue;
-					strArr.forEach((str) => {
-						if (this.title.toLowerCase().includes(str)) {
-							similarity += s;
+					for (var i = 0; i < searchPedals.length; i++) {
+						var strArr = searchPedals[i].name.toLowerCase().split(" ");
+						var similarity = 0;
+						var s = 1 / strArr.length;
+						
+						var titleLength = this.title.split(" ").length;
+						if (titleLength < strArr.length / 2) continue;
+						strArr.forEach((str) => {
+							if (this.title.toLowerCase().includes(str)) {
+								similarity += s;
+							}
+						});
+						
+						if (similarity > 0.5 && this.condition.display_name.toLowerCase() === searchPedals[i].condition.toLowerCase()) {
+							flag = true;
+							break;
 						}
-					});
-					
-					if (similarity > 0.5 && this.condition.display_name.toLowerCase() === searchPedals[i].condition.toLowerCase()) {
-						flag = true;
-						break;
 					}
-				}
-				return flag;
-			}.toString().replace('{{PEDALS_DATA}}', JSON.stringify(pedals))
-		})
-		.sort({ price: 1 }); // Sort by price ascending
-		
+					return flag;
+				}.toString().replace('{{PEDALS_DATA}}', JSON.stringify(pedals))
+			})
+			.sort({ price: 1 }); // Sort by price ascending
+		}
+		else {
+			foundPedals = searchedPedals.slice()
+		}
 		// Calculate pagination metadata from total results
 		const totalCount = foundPedals.length;
 		const totalPages = Math.ceil(totalCount / limit);
 		const hasNextPage = page < totalPages;
 		const hasPrevPage = page > 1;
-		
+		searchedPedals = foundPedals.slice();
 		// Apply pagination to results
 		const paginatedPedals = foundPedals.slice(skip, skip + limit);
 		
