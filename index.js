@@ -218,7 +218,15 @@ app.post("/initial", async (req, res) => {
 			return res.status(500).json({ error: 'Database not connected. Please try again.' });
 		}
 		
-		await getCanonicalProductId(11000)
+		Pedal.countDocuments({
+			priceGuide: { $exists: true, $ne: [] }
+		  }).then(count => {
+			console.log(count);
+		  }).catch(err => {
+			console.error(err);
+		  });
+
+		// await getCanonicalProductId(11000)
 
 		// Process existing pedals in batches to verify they are actually guitar pedals
 		// await processExistingPedalsInBatches();
