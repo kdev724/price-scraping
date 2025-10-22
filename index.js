@@ -501,8 +501,6 @@ const getCanonicalProductId = async (skip) => {
 	var products = await Pedal.find({}).limit(1000).skip(skip)
 	for (var product of products) {
 		await gett(product)
-		// Add delay between API calls to avoid overwhelming the server
-		await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
 	}
 	console.log("finished", skip)
 	if (products.length > 0) {
@@ -576,100 +574,60 @@ const testFindFavorite = async (product) => {
 		};
 
 		try {
-			const response = await retryWithBackoff(async () => {
-				return await axios.post('https://gql.reverb.com/graphql', {
-					operationName,
-					query,
-					variables
-				}, {
-					headers: {
-						'Content-Type': 'application/json',
-						'Accept': 'application/json',
-					},
-					timeout: 15000 // 15 second timeout for GraphQL
-				});
-			}, 2, 3000); // 2 retries, 3 second base delay
+			const response = await axios.post('https://gql.reverb.com/graphql', {
+				operationName,
+				query,
+				variables
+			}, {
+				headers: {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json',
+				}
+			});
 
 			if (response.data.data && response.data.data.findFavorite && response.data.data.findFavorite.favorite && response.data.data.findFavorite.favorite.queryParams) {
-				var queryParams = JSON.parse(response.data.data.findFavorite.favorite.queryParams);
-				product.cp_ids = queryParams["cp_ids"];
-				console.log(product.cp_ids);
-				await product.save();
+				var queryParams = JSON.parse(response.data.data.findFavorite.favorite.queryParams)
+				product.cp_ids = queryParams["cp_ids"]
+				console.log(product.cp_ids)
+				await product.save()
 			}
 		} catch (error) {
-			if (error.response?.status === 502) {
-				console.log(`❌ FindFavorite Bad Gateway (502) for product "${product.title}". Skipping.`);
-			} else if (error.response?.status === 429) {
-				console.log(`❌ FindFavorite Rate limited (429) for product "${product.title}". Skipping.`);
-			} else {
-				console.error('FindFavorite GraphQL Error:', error.response?.data || error.message);
-			}
-			// Don't throw error, just skip this product
+			console.log(`❌ Skipping FindFavorite for "${product.title}":`, error.message);
+			// Continue processing other products
 		}
 	} catch (error) {
-		console.error('Find Favorite test failed:', error.message);
+		console.log(`❌ Skipping FindFavorite for "${product.title}":`, error.message);
+		// Continue processing other products
 	}
 }
 
-
-// Retry function with exponential backoff
-async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 200) {
-	for (let attempt = 1; attempt <= maxRetries; attempt++) {
-		try {
-			return await fn();
-		} catch (error) {
-			const isRetryableError = error.response?.status >= 500 || 
-									error.code === 'ECONNRESET' || 
-									error.code === 'ETIMEDOUT' ||
-									error.code === 'ENOTFOUND';
-			
-			if (attempt === maxRetries || !isRetryableError) {
-				throw error;
-			}
-			
-			const delay = baseDelay * Math.pow(2, attempt - 1);
-			console.log(`Attempt ${attempt} failed for "${product.title}". Retrying in ${delay}ms...`);
-			await new Promise(resolve => setTimeout(resolve, delay));
-		}
-	}
-}
 
 async function gett(product) {
 	try {
-		const response = await retryWithBackoff(async () => {
-			return await axios.get('https://api.reverb.com/api/priceguide', {
-				headers: {
-					'Authorization': `Bearer ${accessToken}`,
-					'Content-Type': 'application/json',
-					'Accept': 'application/json',
-					'Accept-Version': '3.0'
-				},
-				params: {
-					query: product.title
-				},
-				timeout: 10000 // 10 second timeout
-			});
-		}, 3, 2000); // 3 retries, 2 second base delay
-
-		if (response.data.price_guides && response.data.price_guides.length > 0) {
-			if (response.data.price_guides[0].comparison_shopping_page_id) {
-				product.csp.id = response.data.price_guides[0].comparison_shopping_page_id;
-				await testProductReviews(product);
+		const response = await axios.get('https://api.reverb.com/api/priceguide',
+		{
+			headers: {
+				'Authorization': `Bearer ${accessToken}`,
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+				'Accept-Version': '3.0'
+			},
+			params: {
+				query: product.title
 			}
-		} else {
-			console.log("No price guide found for", product.title);
+		});
+		if (response.data.price_guides.length > 0) {
+			if (response.data.price_guides[0].comparison_shopping_page_id) {
+				product.csp.id = response.data.price_guides[0].comparison_shopping_page_id
+				await testProductReviews(product)
+			}
+		}
+		else {
+			console.log("No price guide found for", product.title)
 		}
 	} catch (error) {
-		if (error.response?.status === 502) {
-			console.log(`❌ Bad Gateway (502) for "${product.title}". Skipping this product.`);
-		} else if (error.response?.status === 429) {
-			console.log(`❌ Rate limited (429) for "${product.title}". Skipping this product.`);
-		} else if (error.response?.status === 401) {
-			console.log(`❌ Unauthorized (401) for "${product.title}". Check your API token.`);
-		} else {
-			console.log(`❌ API Error for "${product.title}":`, error.message);
-		}
-		// Continue processing other products instead of crashing
+		console.log(`❌ Skipping "${product.title}" due to error:`, error.message);
+		// Continue processing other products
 	}
 }
 
@@ -782,35 +740,26 @@ const getProductReviews = async (product, offset = 0, verified = false, ratings 
 	};
 
 	try {
-		const response = await retryWithBackoff(async () => {
-			return await axios.post('https://gql.reverb.com/graphql', {
-				operationName,
-				query,
-				variables
-			}, {
-				headers: {
-					'Content-Type': 'application/json',
-					'Accept': 'application/json',
-				},
-				timeout: 15000 // 15 second timeout for GraphQL
-			});
-		}, 2, 3000); // 2 retries, 3 second base delay
-
+		const response = await axios.post('https://gql.reverb.com/graphql', {
+			operationName,
+			query,
+			variables
+		}, {
+			headers: {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+			}
+		});
 		if (response.data.data && response.data.data.csp) {
-			product.csp.slug = response.data.data.csp.slug;
-			await testFindFavorite(product);
-		} else {
-			console.log('No product reviews found for', product.title);
+			product.csp.slug = response.data.data.csp.slug
+			await testFindFavorite(product)
+		}
+		else {
+			console.log('No product reviews found for', product.title)
 		}
 	} catch (error) {
-		if (error.response?.status === 502) {
-			console.log(`❌ GraphQL Bad Gateway (502) for product "${product.title}". Skipping.`);
-		} else if (error.response?.status === 429) {
-			console.log(`❌ GraphQL Rate limited (429) for product "${product.title}". Skipping.`);
-		} else {
-			console.error('Product Reviews GraphQL Error:', error.response?.data || error.message);
-		}
-		// Don't throw error, just skip this product
+		console.log(`❌ Skipping GraphQL for "${product.title}":`, error.message);
+		// Continue processing other products
 	}
 }
 
