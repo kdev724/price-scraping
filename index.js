@@ -613,7 +613,7 @@ const testFindFavorite = async (product) => {
 
 
 // Retry function with exponential backoff
-async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
+async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 200) {
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		try {
 			return await fn();
