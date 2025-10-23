@@ -782,7 +782,7 @@
                 }
                 
                 // Reload products with the new filter, starting from page 1
-                getProducts(customerId, state.pedals, 1, state.pageSize, false, filterValue);
+                getProducts(customerId, state.pedals, 1, state.pageSize, true, filterValue);
             }
             function refreshProducts(customerId) {
                 var customer = customers.find(c => c.id === customerId);
