@@ -1301,7 +1301,7 @@ async function getPriceGuide(product) {
 				});
 			}
 		});
-		console.log("Found", response.data.data.priceRecordsSearch.priceRecords)
+		console.log("Found", product.productId)
 		product.keywords = [];
 		// await product.save();
 	} catch (error) {
