@@ -222,9 +222,11 @@ app.post("/initial", async (req, res) => {
 		// .then(count => console.log('Total pedals in database:', count))
 		// .catch(err => console.error(err));
 
+		Pedal.updateMany({ cp_ids: { $exists: true, $size: 0 } }, { $set: { priceGuide: [] } });
+
 		// await getCanonicalProductId(25510)
 
-		await getProductsPriceGuide(0)
+		// await getProductsPriceGuide(0)
 // 45500
 		// Process existing pedals in batches to verify they are actually guitar pedals
 		// await processExistingPedalsInBatches();
@@ -248,6 +250,9 @@ app.post("/search", async (req, res) => {
 		const page = parseInt(req.body.page) || 1;
 		const limit = parseInt(req.body.limit) || 10;
 		const skip = (page - 1) * limit;
+		
+		// Extract price guide filter parameter (all, with, without)
+		const priceGuideFilter = req.body.priceGuideFilter || 'all';
 		
 		// Validate pagination parameters
 		if (page < 1) {
@@ -310,17 +315,40 @@ app.post("/search", async (req, res) => {
 			})
 			.sort({ price: 1 }); // Sort by price ascending
 		}
-		else {
-			foundPedals = searchedPedals.slice()
+	else {
+		foundPedals = searchedPedals.slice()
+	}
+	
+	// Calculate statistics for all found pedals (before filtering)
+	const totalWithPriceGuide = foundPedals.filter(p => p.priceGuide && p.priceGuide.length > 0).length;
+	const totalWithoutPriceGuide = foundPedals.length - totalWithPriceGuide;
+	
+	// Apply price guide filter if specified
+	if (priceGuideFilter === 'with') {
+		foundPedals = foundPedals.filter(p => p.priceGuide && p.priceGuide.length > 0);
+	} else if (priceGuideFilter === 'without') {
+		foundPedals = foundPedals.filter(p => !p.priceGuide || p.priceGuide.length === 0);
+	}
+	
+	// Sort by price guide status (those with guide first), then by price
+	foundPedals.sort((a, b) => {
+		const aHasGuide = a.priceGuide && a.priceGuide.length > 0;
+		const bHasGuide = b.priceGuide && b.priceGuide.length > 0;
+		
+		if (aHasGuide === bHasGuide) {
+			return a.price.amount - b.price.amount; // Sort by price if same guide status
 		}
-		// Calculate pagination metadata from total results
-		const totalCount = foundPedals.length;
-		const totalPages = Math.ceil(totalCount / limit);
-		const hasNextPage = page < totalPages;
-		const hasPrevPage = page > 1;
-		searchedPedals = foundPedals.slice();
-		// Apply pagination to results
-		const paginatedPedals = foundPedals.slice(skip, skip + limit);
+		return aHasGuide ? -1 : 1; // Those with guide come first
+	});
+	
+	// Calculate pagination metadata from filtered results
+	const totalCount = foundPedals.length;
+	const totalPages = Math.ceil(totalCount / limit);
+	const hasNextPage = page < totalPages;
+	const hasPrevPage = page > 1;
+	searchedPedals = foundPedals.slice();
+	// Apply pagination to results
+	const paginatedPedals = foundPedals.slice(skip, skip + limit);
 		
 		console.log(paginatedPedals.length)
 		if (paginatedPedals.length > 0) {
@@ -339,34 +367,44 @@ app.post("/search", async (req, res) => {
 				});
 			});
 			
-			return res.json({ 
-				products,
-				pagination: {
-					currentPage: page,
-					totalPages: totalPages,
-					totalItems: totalCount,
-					itemsPerPage: limit,
-					hasNextPage: hasNextPage,
-					hasPrevPage: hasPrevPage,
-					nextPage: hasNextPage ? page + 1 : null,
-					prevPage: hasPrevPage ? page - 1 : null
-				}
-			});
-		} else {
-			return res.status(404).json({ 
-				error: "No pedals found",
-				pagination: {
-					currentPage: page,
-					totalPages: 0,
-					totalItems: 0,
-					itemsPerPage: limit,
-					hasNextPage: false,
-					hasPrevPage: false,
-					nextPage: null,
-					prevPage: null
-				}
-			});
-		}
+		return res.json({ 
+			products,
+			pagination: {
+				currentPage: page,
+				totalPages: totalPages,
+				totalItems: totalCount,
+				itemsPerPage: limit,
+				hasNextPage: hasNextPage,
+				hasPrevPage: hasPrevPage,
+				nextPage: hasNextPage ? page + 1 : null,
+				prevPage: hasPrevPage ? page - 1 : null
+			},
+			statistics: {
+				totalAll: totalWithPriceGuide + totalWithoutPriceGuide,
+				totalWithPriceGuide: totalWithPriceGuide,
+				totalWithoutPriceGuide: totalWithoutPriceGuide
+			}
+		});
+	} else {
+		return res.status(404).json({ 
+			error: "No pedals found",
+			pagination: {
+				currentPage: page,
+				totalPages: 0,
+				totalItems: 0,
+				itemsPerPage: limit,
+				hasNextPage: false,
+				hasPrevPage: false,
+				nextPage: null,
+				prevPage: null
+			},
+			statistics: {
+				totalAll: totalWithPriceGuide + totalWithoutPriceGuide,
+				totalWithPriceGuide: totalWithPriceGuide,
+				totalWithoutPriceGuide: totalWithoutPriceGuide
+			}
+		});
+	}
 	} catch (err) {
 		console.error("❌ Error fetching pedals:", err);
 		return res.status(500).json({ error: "Internal server error" });

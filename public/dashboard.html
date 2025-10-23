@@ -118,6 +118,25 @@
             .price-flag.no-guide::before {
                 content: "⚠ ";
             }
+            
+            /* Filter section styling */
+            .filter-section {
+                background-color: #f8f9fa;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 15px;
+                border: 1px solid #dee2e6;
+            }
+            
+            .filter-counter {
+                font-size: 0.9em;
+                color: #6c757d;
+                margin-left: 15px;
+            }
+            
+            .filter-counter strong {
+                color: #212529;
+            }
         </style>
     </head>
     <body>
@@ -126,7 +145,7 @@
             Select xlsx File
             <input type="file" id="xlsxFileInput" accept=".xlsx" style="display:none" onchange="handleXlsxUpload(event)">
         </label>
-        <button class="btn btn-danger" onclick="dataInitial()" style="position: absolute; left: 50%; transform: translateX(-50%);">Initial Data</button>
+        <button class="btn btn-danger" onclick="dataInitial()" style="position: absolute; left: 50%; transform: translateX(-50%);">Refresh backend data</button>
         <button class="btn btn-primary" onclick="downloadExcel()" style="float: right;">Download</button>
         <div id="dashboard"></div>
         <!-- Bootstrap Modal -->
@@ -359,6 +378,22 @@
                             <button class="btn btn-secondary mb-2" onclick="resetProducts(${customer.id})">Reset</button>
                             <button class="btn btn-primary" onclick="refreshProducts(${customer.id})" style="float: right"><span class="glyphicon glyphicon-refresh"></span> Refresh</button>
                         </div>
+                        <div class="filter-section">
+                            <div class="d-flex align-items-center flex-wrap">
+                                <label class="me-2 mb-0 fw-semibold">Filter Products:</label>
+                                <div class="btn-group" role="group" id="priceGuideFilter${customer.id}">
+                                    <input type="radio" class="btn-check" name="filter${customer.id}" id="filterAll${customer.id}" value="all" checked autocomplete="off" onchange="applyPriceGuideFilter(${customer.id})">
+                                    <label class="btn btn-outline-primary" for="filterAll${customer.id}">All Products</label>
+                                    
+                                    <input type="radio" class="btn-check" name="filter${customer.id}" id="filterWithGuide${customer.id}" value="with" autocomplete="off" onchange="applyPriceGuideFilter(${customer.id})">
+                                    <label class="btn btn-outline-success" for="filterWithGuide${customer.id}">✓ With Price Guide</label>
+                                    
+                                    <input type="radio" class="btn-check" name="filter${customer.id}" id="filterWithoutGuide${customer.id}" value="without" autocomplete="off" onchange="applyPriceGuideFilter(${customer.id})">
+                                    <label class="btn btn-outline-danger" for="filterWithoutGuide${customer.id}">⚠ Without Price Guide</label>
+                                </div>
+                                <span class="filter-counter" id="filterCounter${customer.id}"></span>
+                            </div>
+                        </div>
                         <table id="customerTable${customer.id}" class="table table-bordered" style="margin-top: 10px">
                             <thead class="table-light">
                                 <tr>
@@ -375,13 +410,18 @@
                                     <th></th>
                                 </tr>
                             </thead>
-                            <tbody id="customerBody${customer.id}">
-                                ${
-                                    customer.products.map((item, i) => `
+                        <tbody id="customerBody${customer.id}">
+                            ${
+                                customer.products
+                                    .sort((a, b) => {
+                                        if (a.hasPriceGuide === b.hasPriceGuide) return 0;
+                                        return a.hasPriceGuide ? -1 : 1;
+                                    })
+                                    .map((item, i) => `
                                         ${addTBodyHtml(customer, item)}
                                     `).join('')
-                                }
-                            </tbody>
+                            }
+                        </tbody>
                         </table>
                         <!-- Pagination Controls -->
                         <div id="pagination${customer.id}" class="d-flex justify-content-between align-items-center mt-3" style="display: none !important;">
@@ -500,6 +540,7 @@
                 if (customer) {
                     customer.products = customer.products.filter((_item, index) => _item.id != rowId.replace(`customer${customerId}delete`, ''));
                 }
+                // Note: Filter counter will be updated when products are refreshed
             }
 
             function saveProducts(customerId) {
@@ -523,7 +564,7 @@
                 // Make API request to backend
             }
 
-            function getProducts(customerId, pedals, page = 1, pageSize = 10, toPage = false) {
+            function getProducts(customerId, pedals, page = 1, pageSize = 10, toPage = false, priceGuideFilter = 'all') {
                 var customerBody = document.getElementById(`customerBody${customerId}`);
                 
                 // Initialize pagination state for this customer
@@ -533,7 +574,8 @@
                         pageSize: 10,
                         totalItems: 0,
                         totalPages: 0,
-                        pedals: []
+                        pedals: [],
+                        priceGuideFilter: 'all'
                     };
                 }
                 
@@ -541,6 +583,7 @@
                 paginationState[customerId].currentPage = page;
                 paginationState[customerId].pageSize = pageSize;
                 paginationState[customerId].pedals = pedals;
+                paginationState[customerId].priceGuideFilter = priceGuideFilter;
                 
                 // Show loading screen
                 customerBody.innerHTML = `
@@ -565,7 +608,8 @@
                         pedals: JSON.stringify(pedals),
                         page: page,
                         limit: pageSize,
-                        toPage: toPage
+                        toPage: toPage,
+                        priceGuideFilter: priceGuideFilter
                     })
                 })
                 .then(response => response.json())
@@ -583,8 +627,7 @@
                         // Clear existing products for this page
                         customer.products = customer.products.filter(p => p.page !== page);
                         
-                        
-                        // Add new products for this page
+                        // Process products and add hasPriceGuide flag (backend already sorted them)
                         data.products.forEach((item, i) => {
                             item.hasPriceGuide = false;
                             var price = item.price
@@ -597,7 +640,7 @@
                                     display: '$' + priceGuide.toFixed(2)
                                 }
                             }
-                            customer.products.push({
+                            var product = {
                                 id: item.id,
                                 productId: item.productId || '',
                                 title: item.title || '',
@@ -609,16 +652,25 @@
                                 photos: item.photos || [],
                                 page: page,
                                 hasPriceGuide: item.hasPriceGuide
-                            });
-                            customerBody.innerHTML += addTBodyHtml(customer, item);
+                            };
+                            customer.products.push(product);
+                            customerBody.innerHTML += addTBodyHtml(customer, product);
                         });
                         
                         // Update pagination state
                         paginationState[customerId].totalItems = data.pagination.totalItems;
                         paginationState[customerId].totalPages = data.pagination.totalPages;
                         
+                        // Store statistics from backend
+                        if (data.statistics) {
+                            paginationState[customerId].statistics = data.statistics;
+                        }
+                        
                         // Update pagination controls
                         updatePaginationControls(customerId);
+                        
+                        // Update filter counter with backend statistics
+                        updateFilterCounterFromStats(customerId, data.statistics);
                         
                         // Show pagination if there are multiple pages
                         var paginationDiv = document.getElementById(`pagination${customerId}`);
@@ -674,7 +726,7 @@
                 }
                 console.log(item.hasPriceGuide)
                 return `
-                    <tr>
+                    <tr data-has-price-guide="${item.hasPriceGuide || false}">
                         <td>
                             <input type="checkbox" class="productCheckbox" data-row="customer${customer.id}delete${item.id}" data-customer-id="${customer.id}" data-product-id="${item.id}">
                         </td>
@@ -698,6 +750,39 @@
                         </td>
                     </tr>
                 `
+            }
+            
+            function updateFilterCounterFromStats(customerId, statistics) {
+                if (!statistics) return;
+                
+                var counterElement = document.getElementById(`filterCounter${customerId}`);
+                if (counterElement) {
+                    counterElement.innerHTML = `
+                        <span>Total: <strong>${statistics.totalAll}</strong></span>
+                        <span class="ms-2 text-success">✓ With Guide: <strong>${statistics.totalWithPriceGuide}</strong></span>
+                        <span class="ms-2 text-danger">⚠ Without Guide: <strong>${statistics.totalWithoutPriceGuide}</strong></span>
+                    `;
+                }
+            }
+            
+            function applyPriceGuideFilter(customerId) {
+                var state = paginationState[customerId];
+                if (!state || !state.pedals || state.pedals.length === 0) {
+                    alert('Please load products first before applying filters.');
+                    return;
+                }
+                
+                // Get selected filter value
+                var filterValue = document.querySelector(`input[name="filter${customerId}"]:checked`).value;
+                
+                // Clear existing products and reload from backend with the filter
+                var customer = customers.find(c => c.id === customerId);
+                if (customer) {
+                    customer.products = [];
+                }
+                
+                // Reload products with the new filter, starting from page 1
+                getProducts(customerId, state.pedals, 1, state.pageSize, false, filterValue);
             }
             function refreshProducts(customerId) {
                 var customer = customers.find(c => c.id === customerId);
@@ -724,7 +809,8 @@
                     if (paginationState[customerId]) {
                         paginationState[customerId].currentPage = 1;
                     }
-                    getProducts(customerId, pedals, 1, paginationState[customerId]?.pageSize || 10);
+                    var currentFilter = paginationState[customerId]?.priceGuideFilter || 'all';
+                    getProducts(customerId, pedals, 1, paginationState[customerId]?.pageSize || 10, false, currentFilter);
                 }
             }
             
@@ -836,7 +922,7 @@
                 var state = paginationState[customerId];
                 if (!state || page < 1 || page > state.totalPages) return;
                 
-                getProducts(customerId, state.pedals, page, state.pageSize, true);
+                getProducts(customerId, state.pedals, page, state.pageSize, true, state.priceGuideFilter || 'all');
             }
             
             function changePageSize(customerId) {
@@ -847,7 +933,7 @@
                 if (!state) return;
                 
                 // Reset to page 1 when changing page size
-                getProducts(customerId, state.pedals, 1, newPageSize);
+                getProducts(customerId, state.pedals, 1, newPageSize, false, state.priceGuideFilter || 'all');
             }
 
             function toggleSelectAll(customerId) {
@@ -920,6 +1006,8 @@
                     deletedRows.push(`customer${customerId}delete${productId}`);
                 });
 
+                // Note: Filter counter will be updated when products are refreshed
+
                 // Reset select all checkbox since we're keeping only selected items
                 const selectAllCheckbox = document.getElementById(`selectAll${customerId}`);
                 if (selectAllCheckbox) {
@@ -958,6 +1046,8 @@
                     // Add to deleted rows array
                     deletedRows.push(`customer${customerId}delete${productId}`);
                 });
+
+                // Note: Filter counter will be updated when products are refreshed
 
                 // Reset select all checkbox
                 const selectAllCheckbox = document.getElementById(`selectAll${customerId}`);
