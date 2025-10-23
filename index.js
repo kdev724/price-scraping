@@ -1287,7 +1287,6 @@ async function getPriceGuide(product) {
 			// await Pedal.deleteOne({productId: product.productId})
 			return;
 		}
-		console.log('Price Guide found for product:', product.productId);
 		product.priceGuide = [];
 		response.data.data.priceRecordsSearch.priceRecords.forEach(priceRecord => {
 			if (priceRecord.amountProduct && priceRecord.amountProduct.display.includes("$")) {
@@ -1301,9 +1300,9 @@ async function getPriceGuide(product) {
 				});
 			}
 		});
-		console.log("Found", product.productId)
+		console.log('Price Guide found for product:', product.priceGuide.length);
 		product.keywords = [];
-		// await product.save();
+		await product.save();
 	} catch (error) {
 		console.error('Price Guide API Error:', error.response?.data || error.message);
 	}
