@@ -219,13 +219,12 @@ app.post("/initial", async (req, res) => {
 			return res.status(500).json({ error: 'Database not connected. Please try again.' });
 		}
 		
-		// Pedal.countDocuments({ cp_ids: { $exists: true, $not: { $size: 0 } } })
-		// .then(count => console.log('Total pedals in database:', count))
-		// .catch(err => console.error(err));
+		var count = await Pedal.countDocuments({ cp_ids: { $exists: true, $not: { $size: 0 } } })
+		console.log(count)
 
-		await Pedal.updateMany({ cp_ids: { $exists: true, $not: { $size: 0 } } }, { $set: { cp_ids: [] } });
+		// await Pedal.updateMany({ cp_ids: { $exists: true, $not: { $size: 0 } } }, { $set: { cp_ids: [] } });
 
-		await getCanonicalProductId(0)
+		await getCanonicalProductId(count)
 
 		// await getProductsPriceGuide(0)
 // 45500
@@ -552,7 +551,7 @@ const getCanonicalProductId = async (skip) => {
 	}
 	console.log("finished", skip)
 	if (products.length > 0) {
-		getCanonicalProductId(skip + 1000)
+		await getCanonicalProductId(skip + 1000)
 	}
 	console.log("All are finished", skip)
 }
