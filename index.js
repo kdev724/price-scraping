@@ -315,9 +315,9 @@ app.post("/search", async (req, res) => {
 			})
 			.sort({ price: 1 }); // Sort by price ascending
 		}
-	else {
-		foundPedals = searchedPedals.slice()
-	}
+		else {
+			foundPedals = searchedPedals.slice()
+		}
 	
 	// Calculate statistics for all found pedals (before filtering)
 	const totalWithPriceGuide = foundPedals.filter(p => p.priceGuide && p.priceGuide.length > 0).length;
@@ -349,7 +349,7 @@ app.post("/search", async (req, res) => {
 	const totalPages = Math.ceil(totalCount / limit);
 	const hasNextPage = page < totalPages;
 	const hasPrevPage = page > 1;
-	searchedPedals = foundPedals.slice();
+	if (!req.body.toPage) searchedPedals = foundPedals.slice();
 	// Apply pagination to results
 	const paginatedPedals = foundPedals.slice(skip, skip + limit);
 		
