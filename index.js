@@ -218,15 +218,12 @@ app.post("/initial", async (req, res) => {
 			return res.status(500).json({ error: 'Database not connected. Please try again.' });
 		}
 		
-		// Pedal.countDocuments({ cp_ids: { $exists: true, $not: { $size: 0 } } })
-		// .then(count => console.log('Total pedals in database:', count))
-		// .catch(err => console.error(err));
+		Pedal.countDocuments({ cp_ids: { $exists: true, $not: { $size: 0 } } })
+		.then(count => console.log('Total pedals in database:', count))
+		.catch(err => console.error(err));
 
 		// await getCanonicalProductId(25510)
 
-		await Pedal.deleteMany({"condition.slug": "brand-new"})
-		const count = await Pedal.countDocuments({})
-		console.log(count)
 		// await getProductsPriceGuide(0)
 
 		// Process existing pedals in batches to verify they are actually guitar pedals
