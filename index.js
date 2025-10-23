@@ -323,6 +323,7 @@ app.post("/search", async (req, res) => {
 	const totalWithPriceGuide = foundPedals.filter(p => p.priceGuide && p.priceGuide.length > 0).length;
 	const totalWithoutPriceGuide = foundPedals.length - totalWithPriceGuide;
 	
+	console.log(0)
 	// Apply price guide filter if specified
 	if (priceGuideFilter === 'with') {
 		foundPedals = foundPedals.filter(p => p.priceGuide && p.priceGuide.length > 0);
@@ -330,6 +331,7 @@ app.post("/search", async (req, res) => {
 		foundPedals = foundPedals.filter(p => !p.priceGuide || p.priceGuide.length === 0);
 	}
 	
+	console.log(1)
 	// Sort by price guide status (those with guide first), then by price
 	foundPedals.sort((a, b) => {
 		const aHasGuide = a.priceGuide && a.priceGuide.length > 0;
@@ -341,6 +343,7 @@ app.post("/search", async (req, res) => {
 		return aHasGuide ? -1 : 1; // Those with guide come first
 	});
 	
+	console.log(2)
 	// Calculate pagination metadata from filtered results
 	const totalCount = foundPedals.length;
 	const totalPages = Math.ceil(totalCount / limit);
