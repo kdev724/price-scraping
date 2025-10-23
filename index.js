@@ -1287,10 +1287,12 @@ async function getPriceGuide(product) {
 			// await Pedal.deleteOne({productId: product.productId})
 			return;
 		}
-		product.priceGuide = [];
-		response.data.data.priceRecordsSearch.priceRecords.forEach(priceRecord => {
-			if (priceRecord.amountProduct && priceRecord.amountProduct.display.includes("$")) {
-				var number = parseFloat(priceRecord.amountProduct.display.replace("$", ""));
+	product.priceGuide = [];
+	response.data.data.priceRecordsSearch.priceRecords.forEach(priceRecord => {
+		if (priceRecord.amountProduct && priceRecord.amountProduct.display.includes("$")) {
+			var number = parseFloat(priceRecord.amountProduct.display.replace("$", "").replace(",", ""));
+			// Only add to priceGuide if the parsed number is valid
+			if (!isNaN(number) && isFinite(number)) {
 				product.priceGuide.push({
 					_id: priceRecord._id,
 					condition: priceRecord.condition.displayName,
@@ -1298,9 +1300,12 @@ async function getPriceGuide(product) {
 					listingId: priceRecord.listingId,
 					createdAt: priceRecord.createdAt.seconds
 				});
+			} else {
+				console.log(`⚠️ Skipping invalid price for ${product.title}: "${priceRecord.amountProduct.display}"`);
 			}
-		});
-		console.log('Price Guide found for product:', product.priceGuide.length);
+		}
+	});
+		console.log('Price Guide found for product:', product.priceGuide);
 		product.keywords = [];
 		await product.save();
 	} catch (error) {
