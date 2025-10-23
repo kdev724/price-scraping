@@ -10,6 +10,7 @@ const Pedal = require('./model/pedals.mdl');
 const cheerio = require("cheerio");
 const dotenv = require('dotenv');
 const fs = require('fs');
+const stringSimilarity = require('string-similarity');
 
 // Debug what's happening
 console.log('=== DEBUGGING ENV LOADING ===');
@@ -222,9 +223,9 @@ app.post("/initial", async (req, res) => {
 		// .then(count => console.log('Total pedals in database:', count))
 		// .catch(err => console.error(err));
 
-		Pedal.updateMany({ cp_ids: { $exists: true, $size: 0 } }, { $set: { priceGuide: [] } });
+		await Pedal.updateMany({ cp_ids: { $exists: true, $not: { $size: 0 } } }, { $set: { cp_ids: [] } });
 
-		// await getCanonicalProductId(25510)
+		await getCanonicalProductId(0)
 
 		// await getProductsPriceGuide(0)
 // 45500
@@ -648,7 +649,6 @@ const testFindFavorite = async (product) => {
 	}
 }
 
-
 async function gett(product) {
 	try {
 		const response = await axios.get('https://api.reverb.com/api/priceguide',
@@ -660,12 +660,22 @@ async function gett(product) {
 				'Accept-Version': '3.0'
 			},
 			params: {
-				query: product.title
+				query: product.title,
+				make: "Boss",
 			}
 		});
 		if (response.data.price_guides.length > 0) {
-			if (response.data.price_guides[0].comparison_shopping_page_id) {
-				product.csp.id = response.data.price_guides[0].comparison_shopping_page_id
+			var similarity = 0;
+			var priceGuide = {};
+			response.data.price_guides.forEach(p => {
+				var s = stringSimilarity.compareTwoStrings(p.title, product.title)
+				if (s > 0.8 && s > similarity) {
+					similarity = s;
+					priceGuide = p;
+				}
+			})
+			if (priceGuide.comparison_shopping_page_id) {
+				product.csp.id = priceGuide.comparison_shopping_page_id
 				await testProductReviews(product)
 			}
 		}
