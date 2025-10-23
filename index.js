@@ -224,7 +224,10 @@ app.post("/initial", async (req, res) => {
 
 		// await getCanonicalProductId(25510)
 
-		await getProductsPriceGuide(0)
+		await Pedal.deleteMany({condition: {slug: 'brand-new'}})
+		const count = await Pedal.countDocuments({})
+		console.log(count)
+		// await getProductsPriceGuide(0)
 
 		// Process existing pedals in batches to verify they are actually guitar pedals
 		// await processExistingPedalsInBatches();
@@ -1258,6 +1261,7 @@ async function getProductsPriceGuide(skip = 0) {
 
 async function getPriceGuide(product) {
 	try {
+		console.log(product)
 		const payload = {
 			operationName: "Search_PriceGuideTool_TransactionTable",
 			variables: {
@@ -1268,15 +1272,15 @@ async function getPriceGuide(product) {
 				sellerCountries: [
 					"US"
 				],
-				// actionableStatuses: [
-				// 	"shipped",
-				// 	"picked_up",
-				// 	"received"
-				// ],
+				actionableStatuses: [
+					"shipped",
+					"picked_up",
+					"received"
+				],
 				limit: 30,
 				offset: 0
 			},
-			query: "query Search_PriceGuideTool_TransactionTable($canonicalProductIds: [String], $conditionSlugs: [String], $createdAfterDate: String, $limit: Int, $offset: Int) {\n  priceRecordsSearch(\n    input: {canonicalProductIds: $canonicalProductIds, listingConditionSlugs: $conditionSlugs, createdAfterDate: $createdAfterDate, limit: $limit, offset: $offset}\n  ) {\n    priceRecords {\n      _id\n      ...TransactionTablePriceRecordsData\n      __typename\n    }\n    total\n    offset\n    __typename\n  }\n}\n\nfragment TransactionTablePriceRecordsData on PublicPriceRecord {\n  _id\n  condition {\n    displayName\n    __typename\n  }\n  createdAt {\n    seconds\n    __typename\n  }\n  amountProduct {\n    display\n    __typename\n  }\n  listingId\n  __typename\n}"
+			query: "query Search_PriceGuideTool_TransactionTable($canonicalProductIds: [String], $sellerCountries: [String], $conditionSlugs: [String], $createdAfterDate: String, $actionableStatuses: [String], $limit: Int, $offset: Int) {\n  priceRecordsSearch(\n    input: {canonicalProductIds: $canonicalProductIds, sellerCountries: $sellerCountries, listingConditionSlugs: $conditionSlugs, createdAfterDate: $createdAfterDate, actionableStatuses: $actionableStatuses, limit: $limit, offset: $offset}\n  ) {\n    priceRecords {\n      _id\n      ...TransactionTablePriceRecordsData\n      __typename\n    }\n    total\n    offset\n    __typename\n  }\n}\n\nfragment TransactionTablePriceRecordsData on PublicPriceRecord {\n  _id\n  condition {\n    displayName\n    __typename\n  }\n  createdAt {\n    seconds\n    __typename\n  }\n  amountProduct {\n    display\n    __typename\n  }\n  listingId\n  __typename\n}"
 		};
 
 		const response = await axios.post('https://gql.reverb.com/graphql', payload);
@@ -1305,7 +1309,7 @@ async function getPriceGuide(product) {
 			}
 		}
 	});
-		console.log('Price Guide found for product:', product.priceGuide);
+		// console.log('Price Guide found for product:', product.priceGuide);
 		product.keywords = [];
 		await product.save();
 	} catch (error) {
