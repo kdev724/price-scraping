@@ -222,7 +222,9 @@ app.post("/initial", async (req, res) => {
 		// .then(count => console.log('Total pedals in database:', count))
 		// .catch(err => console.error(err));
 
-		await getCanonicalProductId(25510)
+		// await getCanonicalProductId(25510)
+
+		await getProductsPriceGuide(0)
 
 		// Process existing pedals in batches to verify they are actually guitar pedals
 		// await processExistingPedalsInBatches();
@@ -1259,9 +1261,7 @@ async function getPriceGuide(product) {
 		const payload = {
 			operationName: "Search_PriceGuideTool_TransactionTable",
 			variables: {
-				canonicalProductIds: [
-					product.productId
-				],
+				canonicalProductIds: product.cp_ids,
 				conditionSlugs: [
 					product.condition.slug
 				],
