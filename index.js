@@ -224,7 +224,7 @@ app.post("/initial", async (req, res) => {
 
 		// await getCanonicalProductId(25510)
 
-		await Pedal.deleteMany({condition: {slug: 'brand-new'}})
+		await Pedal.deleteMany({"condition.slug": "brand-new"})
 		const count = await Pedal.countDocuments({})
 		console.log(count)
 		// await getProductsPriceGuide(0)
