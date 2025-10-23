@@ -218,14 +218,14 @@ app.post("/initial", async (req, res) => {
 			return res.status(500).json({ error: 'Database not connected. Please try again.' });
 		}
 		
-		Pedal.countDocuments({ cp_ids: { $exists: true, $not: { $size: 0 } } })
-		.then(count => console.log('Total pedals in database:', count))
-		.catch(err => console.error(err));
+		// Pedal.countDocuments({ cp_ids: { $exists: true, $not: { $size: 0 } } })
+		// .then(count => console.log('Total pedals in database:', count))
+		// .catch(err => console.error(err));
 
 		// await getCanonicalProductId(25510)
 
-		// await getProductsPriceGuide(0)
-
+		await getProductsPriceGuide(0)
+// 45500
 		// Process existing pedals in batches to verify they are actually guitar pedals
 		// await processExistingPedalsInBatches();
 		// console.log('✅ Database cleared successfully');
@@ -1258,7 +1258,6 @@ async function getProductsPriceGuide(skip = 0) {
 
 async function getPriceGuide(product) {
 	try {
-		console.log(product)
 		const payload = {
 			operationName: "Search_PriceGuideTool_TransactionTable",
 			variables: {
@@ -1306,7 +1305,7 @@ async function getPriceGuide(product) {
 			}
 		}
 	});
-		// console.log('Price Guide found for product:', product.priceGuide);
+		console.log('Price Guide found for product:', product.priceGuide.length);
 		product.keywords = [];
 		await product.save();
 	} catch (error) {
