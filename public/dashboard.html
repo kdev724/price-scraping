@@ -432,6 +432,7 @@
                                     <option value="20">20</option>
                                     <option value="50">50</option>
                                     <option value="100">100</option>
+                                    <option value="all">ALL</option>
                                 </select>
                             </div>
                             <div class="d-flex align-items-center">
@@ -672,9 +673,9 @@
                         // Update filter counter with backend statistics
                         updateFilterCounterFromStats(customerId, data.statistics);
                         
-                        // Show pagination if there are multiple pages
+                        // Show pagination controls (even with 1 page, to allow switching between ALL and paginated view)
                         var paginationDiv = document.getElementById(`pagination${customerId}`);
-                        if (data.pagination.totalPages > 1) {
+                        if (data.pagination.totalItems > 0) {
                             paginationDiv.style.display = 'flex';
                         } else {
                             paginationDiv.style.display = 'none';
@@ -867,52 +868,65 @@
                 // Update pagination info
                 var startItem = (state.currentPage - 1) * state.pageSize + 1;
                 var endItem = Math.min(state.currentPage * state.pageSize, state.totalItems);
-                paginationInfo.textContent = `Showing ${startItem}-${endItem} of ${state.totalItems} items`;
+                
+                // Check if we're showing all items (when pageSize is very large or equals/exceeds totalItems)
+                if (state.pageSize >= state.totalItems || state.pageSize >= 999999) {
+                    paginationInfo.textContent = `Showing all ${state.totalItems} items`;
+                } else {
+                    paginationInfo.textContent = `Showing ${startItem}-${endItem} of ${state.totalItems} items`;
+                }
                 
                 // Update page size select
-                pageSizeSelect.value = state.pageSize;
+                if (state.pageSize >= 999999) {
+                    pageSizeSelect.value = 'all';
+                } else {
+                    pageSizeSelect.value = state.pageSize;
+                }
                 
-                // Generate pagination buttons
+                // Generate pagination buttons (only if not showing all items)
                 var paginationHtml = '';
+                var isShowingAll = state.pageSize >= state.totalItems || state.pageSize >= 999999;
                 
-                // Previous button
-                if (state.currentPage > 1) {
-                    paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${state.currentPage - 1})">Previous</a></li>`;
-                } else {
-                    paginationHtml += `<li class="page-item disabled"><span class="page-link">Previous</span></li>`;
-                }
-                
-                // Page numbers
-                var startPage = Math.max(1, state.currentPage - 2);
-                var endPage = Math.min(state.totalPages, state.currentPage + 2);
-                
-                if (startPage > 1) {
-                    paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, 1)">1</a></li>`;
-                    if (startPage > 2) {
-                        paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-                    }
-                }
-                
-                for (var i = startPage; i <= endPage; i++) {
-                    if (i === state.currentPage) {
-                        paginationHtml += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+                if (!isShowingAll && state.totalPages > 1) {
+                    // Previous button
+                    if (state.currentPage > 1) {
+                        paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${state.currentPage - 1})">Previous</a></li>`;
                     } else {
-                        paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${i})">${i}</a></li>`;
+                        paginationHtml += `<li class="page-item disabled"><span class="page-link">Previous</span></li>`;
                     }
-                }
-                
-                if (endPage < state.totalPages) {
-                    if (endPage < state.totalPages - 1) {
-                        paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                    
+                    // Page numbers
+                    var startPage = Math.max(1, state.currentPage - 2);
+                    var endPage = Math.min(state.totalPages, state.currentPage + 2);
+                    
+                    if (startPage > 1) {
+                        paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, 1)">1</a></li>`;
+                        if (startPage > 2) {
+                            paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                        }
                     }
-                    paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${state.totalPages})">${state.totalPages}</a></li>`;
-                }
-                
-                // Next button
-                if (state.currentPage < state.totalPages) {
-                    paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${state.currentPage + 1})">Next</a></li>`;
-                } else {
-                    paginationHtml += `<li class="page-item disabled"><span class="page-link">Next</span></li>`;
+                    
+                    for (var i = startPage; i <= endPage; i++) {
+                        if (i === state.currentPage) {
+                            paginationHtml += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+                        } else {
+                            paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${i})">${i}</a></li>`;
+                        }
+                    }
+                    
+                    if (endPage < state.totalPages) {
+                        if (endPage < state.totalPages - 1) {
+                            paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                        }
+                        paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${state.totalPages})">${state.totalPages}</a></li>`;
+                    }
+                    
+                    // Next button
+                    if (state.currentPage < state.totalPages) {
+                        paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${customerId}, ${state.currentPage + 1})">Next</a></li>`;
+                    } else {
+                        paginationHtml += `<li class="page-item disabled"><span class="page-link">Next</span></li>`;
+                    }
                 }
                 
                 paginationNav.innerHTML = paginationHtml;
@@ -927,7 +941,16 @@
             
             function changePageSize(customerId) {
                 var pageSizeSelect = document.getElementById(`pageSize${customerId}`);
-                var newPageSize = parseInt(pageSizeSelect.value);
+                var selectedValue = pageSizeSelect.value;
+                var newPageSize;
+                
+                // Handle "ALL" option by setting a very large page size
+                if (selectedValue === 'all') {
+                    newPageSize = 999999; // Large number to get all items
+                } else {
+                    newPageSize = parseInt(selectedValue);
+                }
+                
                 var state = paginationState[customerId];
                 
                 if (!state) return;

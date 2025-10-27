@@ -258,9 +258,6 @@ app.post("/search", async (req, res) => {
 		if (page < 1) {
 			return res.status(400).json({ error: 'Page must be greater than 0' });
 		}
-		if (limit < 1 || limit > 100) {
-			return res.status(400).json({ error: 'Limit must be between 1 and 100' });
-		}
 		
 		let pedals = [];
 		if (req.body && Array.isArray(req.body.pedals)) {
@@ -305,7 +302,7 @@ app.post("/search", async (req, res) => {
 							}
 						});
 						
-						if (similarity > 0.7 && this.condition.display_name.toLowerCase() === searchPedals[i].condition.toLowerCase()) {
+						if (similarity > 0.9 && this.condition.display_name.toLowerCase() === searchPedals[i].condition.toLowerCase()) {
 							flag = true;
 							break;
 						}
@@ -668,7 +665,7 @@ async function gett(product) {
 			var priceGuide = {};
 			response.data.price_guides.forEach(p => {
 				var s = stringSimilarity.compareTwoStrings(p.title, product.title)
-				if (s > 0.8 && s > similarity) {
+				if (s > 0.9 && s > similarity) {
 					similarity = s;
 					priceGuide = p;
 				}
